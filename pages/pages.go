@@ -10,6 +10,7 @@ import (
 	"github.com/ChristianSiegert/go-packages/i18n/languages"
 	"github.com/ChristianSiegert/go-packages/sessions"
 	"html/template"
+	"log"
 	"net/http"
 	"net/url"
 )
@@ -242,9 +243,11 @@ func Error(
 ) {
 	// context := appengine.NewContext(request)
 	// context.Errorf(err.Error())
+	log.Printf(err.Error())
 
 	if TemplateError == nil {
 		// context.Errorf("pages.Error: TemplateError is nil.")
+		log.Printf("pages.Error: TemplateError is nil.")
 		http.Error(responseWriter, "Internal Server Error", http.StatusInternalServerError)
 		return
 	}
@@ -254,6 +257,7 @@ func Error(
 	errorPage, err2 := NewPage(responseWriter, request, languageCode, translateFunc, nil)
 	if err2 != nil {
 		// context.Errorf(err2.Error())
+		log.Printf(err2.Error())
 		http.Error(responseWriter, "Internal Server Error", http.StatusInternalServerError)
 		return
 	}
@@ -265,6 +269,7 @@ func Error(
 
 	if err := TemplateError.ExecuteTemplate(buffer, "error.html", errorPage); err != nil {
 		// context.Errorf("pages.Error: Executing template failed: %s", err)
+		log.Printf("pages.Error: Executing template failed: %s", err)
 		http.Error(responseWriter, "Internal Server Error", http.StatusInternalServerError)
 		return
 	}
@@ -273,6 +278,7 @@ func Error(
 
 	if _, err := bytes.NewBuffer(b).WriteTo(responseWriter); err != nil {
 		// context.Errorf("pages.Error: Writing template to buffer failed: %s", err)
+		log.Printf("pages.Error: Writing template to buffer failed: %s", err)
 		http.Error(responseWriter, "Internal Server Error", http.StatusInternalServerError)
 	}
 }
