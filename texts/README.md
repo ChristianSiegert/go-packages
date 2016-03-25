@@ -2,13 +2,13 @@
 
 Go package for truncating texts.
 
-# Installation
+## Installation
 
 ```go
 go get github.com/ChristianSiegert/texts
 ```
 
-# Usage
+## Usage
 
 ```go
 import "github.com/ChristianSiegert/texts"
