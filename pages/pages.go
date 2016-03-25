@@ -227,8 +227,12 @@ func (p *Page) SetTitle(title string) {
 	p.title = title
 }
 
-// T returns the translation associated with translationId.
+// T returns the translation associated with translationId. If p.TranslateFunc
+// is nil, translationId is returned.
 func (p *Page) T(translationId string, templateData ...map[string]interface{}) string {
+	if p.TranslateFunc == nil {
+		return translationId
+	}
 	return p.TranslateFunc(translationId, templateData...)
 }
 
