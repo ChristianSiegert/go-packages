@@ -16,7 +16,7 @@ import (
 )
 
 // Path to root template.
-var rootTemplatePath = "./index.html"
+var RootTemplatePath = "./templates/index.html"
 
 // Separator that is used for combining breadcrumbs when Page.Title is called.
 var TitleSeparator = " - "
@@ -27,8 +27,8 @@ var TitleSeparator = " - "
 // from the init function of package main.
 var (
 	TemplateEmpty    = template.Must(MustNewTemplate("", nil).Parse(`{{define "content"}}{{end}}`))
-	TemplateError    *template.Template
-	TemplateNotFound = MustNewTemplate("error-pages/404-not-found.html", nil)
+	TemplateError    = MustNewTemplateWithRoot("./templates/error.html", "./templates/500-internal-server-error.html", nil)
+	TemplateNotFound = MustNewTemplate("./templates/404-not-found.html", nil)
 )
 
 // SignInUrl is the URL to the page that users are redirected to when
@@ -283,9 +283,10 @@ func Error(
 	}
 }
 
-// NewTemplate returns a template consisting of a root template (outer template)
-// and a content template (embedded template).
-func NewTemplate(rootTemplatePath, contentTemplatePath string, funcMap map[string]interface{}) (*template.Template, error) {
+// NewTemplateWithRoot loads a root template and embeds the content template in
+// it. The content template is embedded at the location of
+// {{template "content" .}} in the root template.
+func NewTemplateWithRoot(rootTemplatePath, contentTemplatePath string, funcMap template.FuncMap) (*template.Template, error) {
 	paths := make([]string, 0, 2)
 	paths = append(paths, rootTemplatePath)
 
@@ -296,9 +297,21 @@ func NewTemplate(rootTemplatePath, contentTemplatePath string, funcMap map[strin
 	return template.New("root").Funcs(funcMap).ParseFiles(paths...)
 }
 
-// MustNewTemplate is similar to NewTemplate, except that it always uses
-// RootTemplatePath to specify the root template. If the root or content
+// MustNewTemplateWithRoot calls NewTemplateWithRoot. If the root or content
 // template cannot be found, the function panics.
-func MustNewTemplate(contentTemplatePath string, funcMap map[string]interface{}) *template.Template {
-	return template.Must(NewTemplate(rootTemplatePath, contentTemplatePath, funcMap))
+func MustNewTemplateWithRoot(rootTemplatePath, contentTemplatePath string, funcMap template.FuncMap) *template.Template {
+	return template.Must(NewTemplateWithRoot(rootTemplatePath, contentTemplatePath, funcMap))
+}
+
+// NewTemplate loads the default root template specified by RootTemplatePath and
+// embeds the content template in it. The content template is embedded at the
+// location of {{template "content" .}} in the root template.
+func NewTemplate(contentTemplatePath string, funcMap template.FuncMap) (*template.Template, error) {
+	return NewTemplateWithRoot(RootTemplatePath, contentTemplatePath, funcMap)
+}
+
+// MustNewTemplate calls NewTemplate. If the root or content template cannot be
+// found, the function panics.
+func MustNewTemplate(contentTemplatePath string, funcMap template.FuncMap) *template.Template {
+	return template.Must(NewTemplate(contentTemplatePath, funcMap))
 }
