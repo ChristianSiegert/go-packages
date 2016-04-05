@@ -5,14 +5,16 @@ import (
 	"bytes"
 	"encoding/base64"
 	"fmt"
-	"github.com/ChristianSiegert/go-packages/forms"
-	"github.com/ChristianSiegert/go-packages/html"
-	"github.com/ChristianSiegert/go-packages/i18n/languages"
-	"github.com/ChristianSiegert/go-packages/sessions"
 	"html/template"
 	"log"
 	"net/http"
 	"net/url"
+
+	"github.com/ChristianSiegert/go-packages/forms"
+	"github.com/ChristianSiegert/go-packages/html"
+	"github.com/ChristianSiegert/go-packages/i18n/languages"
+	"github.com/ChristianSiegert/go-packages/sessions"
+	"golang.org/x/net/context"
 )
 
 // Path to root template.
@@ -66,10 +68,15 @@ type Page struct {
 	TranslateFunc languages.TranslateFunc
 }
 
-func NewPage(responseWriter http.ResponseWriter, request *http.Request, languageCode string, translateFunc languages.TranslateFunc, tpl *template.Template) (*Page, error) {
-	session, err := sessions.Get(responseWriter, request)
-	if err != nil {
-		return nil, fmt.Errorf("pages.NewPage: Getting session failed: %s", err)
+func NewPage(ctx context.Context, responseWriter http.ResponseWriter, request *http.Request, languageCode string, tpl *template.Template) (*Page, error) {
+	session, ok := sessions.FromContext(ctx)
+	if !ok {
+		return nil, fmt.Errorf("pages.NewPage: sessions.Session is not provided by ctx.")
+	}
+
+	translateFunc, ok := languages.FromContext(ctx)
+	if !ok {
+		return nil, fmt.Errorf("pages.NewPage: languages.TranslateFunc is not provided by ctx.")
 	}
 
 	page := &Page{
@@ -85,8 +92,9 @@ func NewPage(responseWriter http.ResponseWriter, request *http.Request, language
 	return page, nil
 }
 
-func MustNewPage(responseWriter http.ResponseWriter, request *http.Request, languageCode string, translateFunc languages.TranslateFunc, tpl *template.Template) *Page {
-	page, err := NewPage(responseWriter, request, languageCode, translateFunc, tpl)
+// MustNewPage calls NewPage and panics on error.
+func MustNewPage(ctx context.Context, responseWriter http.ResponseWriter, request *http.Request, languageCode string, tpl *template.Template) *Page {
+	page, err := NewPage(ctx, responseWriter, request, languageCode, tpl)
 	if err != nil {
 		panic("pages.MustNewPage: " + err.Error())
 	}
@@ -132,7 +140,7 @@ func (p *Page) RequireSignIn(pageTitle string) {
 // Serve serves the template “index.html” into which it embeds the content
 // template specified by page.Template. HTML comments and whitespace are
 // stripped. If page.Template is nil, an empty content template is embedded.
-func (p *Page) Serve() {
+func (p *Page) Serve(ctx context.Context) {
 	buffer := bytes.NewBuffer([]byte{})
 
 	if p.Template == nil {
@@ -149,7 +157,7 @@ func (p *Page) Serve() {
 	if err := p.Template.ExecuteTemplate(buffer, "index.html", p); err != nil {
 		// context := appengine.NewContext(p.Request)
 		// context.Errorf(err.Error())
-		Error(p.ResponseWriter, p.Request, p.LanguageCode, p.TranslateFunc, err)
+		Error(ctx, p.ResponseWriter, p.Request, p.LanguageCode, p.TranslateFunc, err)
 		return
 	}
 
@@ -158,30 +166,30 @@ func (p *Page) Serve() {
 	if _, err := bytes.NewBuffer(b).WriteTo(p.ResponseWriter); err != nil {
 		// context := appengine.NewContext(p.Request)
 		// context.Errorf(err.Error())
-		Error(p.ResponseWriter, p.Request, p.LanguageCode, p.TranslateFunc, err)
+		Error(ctx, p.ResponseWriter, p.Request, p.LanguageCode, p.TranslateFunc, err)
 	}
 }
 
 // ServeEmpty serves the root template without content template.
-func (p *Page) ServeEmpty() {
+func (p *Page) ServeEmpty(ctx context.Context) {
 	p.Template = TemplateEmpty
-	p.Serve()
+	p.Serve(ctx)
 }
 
 // ServeNotFound serves a page that tells the user the requested page does not
 // exist.
-func (page *Page) ServeNotFound() {
+func (page *Page) ServeNotFound(ctx context.Context) {
 	page.ResponseWriter.WriteHeader(http.StatusNotFound)
 	page.Template = TemplateNotFound
-	page.Serve()
+	page.Serve(ctx)
 }
 
 // ServeUnauthorized serves a page that tells the user the requested page cannot
 // be accessed due to insufficient access rights.
-func (p *Page) ServeUnauthorized() {
+func (p *Page) ServeUnauthorized(ctx context.Context) {
 	p.Session.AddFlashErrorMessage(p.TranslateFunc("err_unauthorized_access"))
 	p.ResponseWriter.WriteHeader(http.StatusUnauthorized)
-	p.ServeEmpty()
+	p.ServeEmpty(ctx)
 }
 
 // ServeWithError is similar to Serve, but additionally an error flash message
@@ -189,16 +197,16 @@ func (p *Page) ServeUnauthorized() {
 // displayed but written to the error log. This method is useful if the user
 // should be informed of a problem while the state, e.g. a filled in form, is
 // preserved.
-func (p *Page) ServeWithError(err error) {
+func (p *Page) ServeWithError(ctx context.Context, err error) {
 	// context := appengine.NewContext(p.Request)
 	// context.Errorf(err.Error())
 	p.Session.AddFlashErrorMessage(p.TranslateFunc("err_internal_server_error"))
-	p.Serve()
+	p.Serve(ctx)
 }
 
 // Error is an alias for pages.Error.
-func (p *Page) Error(err error) {
-	Error(p.ResponseWriter, p.Request, p.LanguageCode, p.TranslateFunc, err)
+func (p *Page) Error(ctx context.Context, err error) {
+	Error(ctx, p.ResponseWriter, p.Request, p.LanguageCode, p.TranslateFunc, err)
 }
 
 // Title returns the page title if set, or else a title created from bread
@@ -239,6 +247,7 @@ func (p *Page) T(translationId string, templateData ...map[string]interface{}) s
 // Error serves an error page with a generic error message. Err is not displayed
 // to the user but written to the error log.
 func Error(
+	ctx context.Context,
 	responseWriter http.ResponseWriter,
 	request *http.Request,
 	languageCode string,
@@ -258,7 +267,7 @@ func Error(
 
 	buffer := bytes.NewBuffer([]byte{})
 
-	errorPage, err2 := NewPage(responseWriter, request, languageCode, translateFunc, nil)
+	errorPage, err2 := NewPage(ctx, responseWriter, request, languageCode, nil)
 	if err2 != nil {
 		// context.Errorf(err2.Error())
 		log.Printf(err2.Error())

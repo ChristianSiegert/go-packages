@@ -17,6 +17,8 @@ import (
 	"net/http"
 	"regexp"
 	"time"
+
+	"golang.org/x/net/context"
 )
 
 const (
@@ -264,4 +266,22 @@ func CronDeleteExpired(interval time.Duration, expirationLength time.Duration) {
 			}
 		}
 	}()
+}
+
+// contextKey is used for attaching Session to context.Context.
+type contextKey int
+
+// key is the key used for storing and retrieving the session from
+// context.Context.
+const key contextKey = 0
+
+// NewContext returns a new Context carrying session.
+func NewContext(ctx context.Context, session *Session) context.Context {
+	return context.WithValue(ctx, key, session)
+}
+
+// FromContext extracts the session from ctx, if present.
+func FromContext(ctx context.Context) (*Session, bool) {
+	session, ok := ctx.Value(key).(*Session)
+	return session, ok
 }

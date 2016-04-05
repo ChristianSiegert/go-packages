@@ -10,6 +10,8 @@ import (
 	"fmt"
 	"log"
 	"text/template"
+
+	"golang.org/x/net/context"
 )
 
 type Language struct {
@@ -117,4 +119,22 @@ type Translation struct {
 	Few,
 	Many,
 	Other *template.Template
+}
+
+// contextKey is used for attaching TranslateFunc to context.Context.
+type contextKey int
+
+// key is the key used for storing and retrieving TranslateFunc from
+// context.Context.
+const key contextKey = 0
+
+// NewContext returns a new Context carrying TranslateFunc.
+func NewContext(ctx context.Context, translateFunc TranslateFunc) context.Context {
+	return context.WithValue(ctx, key, translateFunc)
+}
+
+// FromContext extracts TranslateFunc from ctx, if present.
+func FromContext(ctx context.Context) (TranslateFunc, bool) {
+	translateFunc, ok := ctx.Value(key).(TranslateFunc)
+	return translateFunc, ok
 }
