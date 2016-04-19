@@ -20,9 +20,6 @@ import (
 // Path to root template.
 var RootTemplatePath = "./templates/index.html"
 
-// Separator that is used for combining breadcrumbs when Page.Title is called.
-var TitleSeparator = " - "
-
 // Templates that are used when Page.ServeEmpty, Error or Page.ServeNotFound is
 // called. If a template is nil, only the HTTP status code is set and nothing is
 // rendered. To set a different template, set Template[Empty|Error|NotFound]
@@ -63,7 +60,9 @@ type Page struct {
 
 	Template *template.Template
 
-	title string
+	// Title of the page that templates can use to populate the HTML <title>
+	// element.
+	Title string
 
 	TranslateFunc languages.TranslateFunc
 }
@@ -207,32 +206,6 @@ func (p *Page) ServeWithError(ctx context.Context, err error) {
 // Error is an alias for pages.Error.
 func (p *Page) Error(ctx context.Context, err error) {
 	Error(ctx, p.ResponseWriter, p.Request, p.LanguageCode, p.TranslateFunc, err)
-}
-
-// Title returns the page title if set, or else a title created from bread
-// crumbs.
-func (p *Page) Title() string {
-	if p.title != "" {
-		return p.title
-	}
-
-	if len(p.Breadcrumbs) > 0 {
-		var title string
-		for i := len(p.Breadcrumbs) - 1; i >= 0; i-- {
-			title += p.Breadcrumbs[i].Title
-			if i > 0 {
-				title += TitleSeparator
-			}
-		}
-		return title
-	}
-
-	return ""
-}
-
-// SetTitles sets the page title.
-func (p *Page) SetTitle(title string) {
-	p.title = title
 }
 
 // T returns the translation associated with translationId. If p.TranslateFunc
