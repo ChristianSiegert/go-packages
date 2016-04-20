@@ -5,28 +5,31 @@ import (
 	"bytes"
 	"encoding/base64"
 	"fmt"
+	"log"
+	"net/http"
+	"net/url"
+
 	"github.com/ChristianSiegert/go-packages/forms"
 	"github.com/ChristianSiegert/go-packages/html"
 	"github.com/ChristianSiegert/go-packages/i18n/languages"
 	"github.com/ChristianSiegert/go-packages/sessions"
-	"html/template"
-	"log"
-	"net/http"
-	"net/url"
+	"golang.org/x/net/context"
 )
+
+// Whether NewPage and MustNewPage should reload the provided template.
+// Reloading templates on each request is useful to see changes without
+// recompiling. In production, reloading should be disabled.
+var ReloadTemplates = false
 
 // Path to root template.
 var RootTemplatePath = "./templates/index.html"
-
-// Separator that is used for combining breadcrumbs when Page.Title is called.
-var TitleSeparator = " - "
 
 // Templates that are used when Page.ServeEmpty, Error or Page.ServeNotFound is
 // called. If a template is nil, only the HTTP status code is set and nothing is
 // rendered. To set a different template, set Template[Empty|Error|NotFound]
 // from the init function of package main.
 var (
-	TemplateEmpty    = template.Must(MustNewTemplate("", nil).Parse(`{{define "content"}}{{end}}`))
+	TemplateEmpty    = MustNewTemplate("", nil)
 	TemplateError    = MustNewTemplateWithRoot("./templates/error.html", "./templates/500-internal-server-error.html", nil)
 	TemplateNotFound = MustNewTemplate("./templates/404-not-found.html", nil)
 )
@@ -59,17 +62,30 @@ type Page struct {
 
 	Session *sessions.Session
 
-	Template *template.Template
+	Template *Template
 
-	title string
+	// Title of the page that templates can use to populate the HTML <title>
+	// element.
+	Title string
 
 	TranslateFunc languages.TranslateFunc
 }
 
-func NewPage(responseWriter http.ResponseWriter, request *http.Request, languageCode string, translateFunc languages.TranslateFunc, tpl *template.Template) (*Page, error) {
-	session, err := sessions.Get(responseWriter, request)
-	if err != nil {
-		return nil, fmt.Errorf("pages.NewPage: Getting session failed: %s", err)
+func NewPage(ctx context.Context, responseWriter http.ResponseWriter, request *http.Request, languageCode string, tpl *Template) (*Page, error) {
+	session, ok := sessions.FromContext(ctx)
+	if !ok {
+		return nil, fmt.Errorf("pages.NewPage: sessions.Session is not provided by ctx.")
+	}
+
+	translateFunc, ok := languages.FromContext(ctx)
+	if !ok {
+		return nil, fmt.Errorf("pages.NewPage: languages.TranslateFunc is not provided by ctx.")
+	}
+
+	if ReloadTemplates {
+		if err := tpl.Reload(); err != nil {
+			return nil, err
+		}
 	}
 
 	page := &Page{
@@ -85,8 +101,9 @@ func NewPage(responseWriter http.ResponseWriter, request *http.Request, language
 	return page, nil
 }
 
-func MustNewPage(responseWriter http.ResponseWriter, request *http.Request, languageCode string, translateFunc languages.TranslateFunc, tpl *template.Template) *Page {
-	page, err := NewPage(responseWriter, request, languageCode, translateFunc, tpl)
+// MustNewPage calls NewPage and panics on error.
+func MustNewPage(ctx context.Context, responseWriter http.ResponseWriter, request *http.Request, languageCode string, tpl *Template) *Page {
+	page, err := NewPage(ctx, responseWriter, request, languageCode, tpl)
 	if err != nil {
 		panic("pages.MustNewPage: " + err.Error())
 	}
@@ -132,7 +149,7 @@ func (p *Page) RequireSignIn(pageTitle string) {
 // Serve serves the template “index.html” into which it embeds the content
 // template specified by page.Template. HTML comments and whitespace are
 // stripped. If page.Template is nil, an empty content template is embedded.
-func (p *Page) Serve() {
+func (p *Page) Serve(ctx context.Context) {
 	buffer := bytes.NewBuffer([]byte{})
 
 	if p.Template == nil {
@@ -146,10 +163,10 @@ func (p *Page) Serve() {
 		return
 	}
 
-	if err := p.Template.ExecuteTemplate(buffer, "index.html", p); err != nil {
+	if err := p.Template.template.ExecuteTemplate(buffer, "index.html", p); err != nil {
 		// context := appengine.NewContext(p.Request)
 		// context.Errorf(err.Error())
-		Error(p.ResponseWriter, p.Request, p.LanguageCode, p.TranslateFunc, err)
+		Error(ctx, p.ResponseWriter, p.Request, p.LanguageCode, p.TranslateFunc, err)
 		return
 	}
 
@@ -158,30 +175,30 @@ func (p *Page) Serve() {
 	if _, err := bytes.NewBuffer(b).WriteTo(p.ResponseWriter); err != nil {
 		// context := appengine.NewContext(p.Request)
 		// context.Errorf(err.Error())
-		Error(p.ResponseWriter, p.Request, p.LanguageCode, p.TranslateFunc, err)
+		Error(ctx, p.ResponseWriter, p.Request, p.LanguageCode, p.TranslateFunc, err)
 	}
 }
 
 // ServeEmpty serves the root template without content template.
-func (p *Page) ServeEmpty() {
+func (p *Page) ServeEmpty(ctx context.Context) {
 	p.Template = TemplateEmpty
-	p.Serve()
+	p.Serve(ctx)
 }
 
 // ServeNotFound serves a page that tells the user the requested page does not
 // exist.
-func (page *Page) ServeNotFound() {
+func (page *Page) ServeNotFound(ctx context.Context) {
 	page.ResponseWriter.WriteHeader(http.StatusNotFound)
 	page.Template = TemplateNotFound
-	page.Serve()
+	page.Serve(ctx)
 }
 
 // ServeUnauthorized serves a page that tells the user the requested page cannot
 // be accessed due to insufficient access rights.
-func (p *Page) ServeUnauthorized() {
+func (p *Page) ServeUnauthorized(ctx context.Context) {
 	p.Session.AddFlashErrorMessage(p.TranslateFunc("err_unauthorized_access"))
 	p.ResponseWriter.WriteHeader(http.StatusUnauthorized)
-	p.ServeEmpty()
+	p.ServeEmpty(ctx)
 }
 
 // ServeWithError is similar to Serve, but additionally an error flash message
@@ -189,42 +206,16 @@ func (p *Page) ServeUnauthorized() {
 // displayed but written to the error log. This method is useful if the user
 // should be informed of a problem while the state, e.g. a filled in form, is
 // preserved.
-func (p *Page) ServeWithError(err error) {
+func (p *Page) ServeWithError(ctx context.Context, err error) {
 	// context := appengine.NewContext(p.Request)
 	// context.Errorf(err.Error())
 	p.Session.AddFlashErrorMessage(p.TranslateFunc("err_internal_server_error"))
-	p.Serve()
+	p.Serve(ctx)
 }
 
 // Error is an alias for pages.Error.
-func (p *Page) Error(err error) {
-	Error(p.ResponseWriter, p.Request, p.LanguageCode, p.TranslateFunc, err)
-}
-
-// Title returns the page title if set, or else a title created from bread
-// crumbs.
-func (p *Page) Title() string {
-	if p.title != "" {
-		return p.title
-	}
-
-	if len(p.Breadcrumbs) > 0 {
-		var title string
-		for i := len(p.Breadcrumbs) - 1; i >= 0; i-- {
-			title += p.Breadcrumbs[i].Title
-			if i > 0 {
-				title += TitleSeparator
-			}
-		}
-		return title
-	}
-
-	return ""
-}
-
-// SetTitles sets the page title.
-func (p *Page) SetTitle(title string) {
-	p.title = title
+func (p *Page) Error(ctx context.Context, err error) {
+	Error(ctx, p.ResponseWriter, p.Request, p.LanguageCode, p.TranslateFunc, err)
 }
 
 // T returns the translation associated with translationId. If p.TranslateFunc
@@ -239,6 +230,7 @@ func (p *Page) T(translationId string, templateData ...map[string]interface{}) s
 // Error serves an error page with a generic error message. Err is not displayed
 // to the user but written to the error log.
 func Error(
+	ctx context.Context,
 	responseWriter http.ResponseWriter,
 	request *http.Request,
 	languageCode string,
@@ -258,7 +250,7 @@ func Error(
 
 	buffer := bytes.NewBuffer([]byte{})
 
-	errorPage, err2 := NewPage(responseWriter, request, languageCode, translateFunc, nil)
+	errorPage, err2 := NewPage(ctx, responseWriter, request, languageCode, nil)
 	if err2 != nil {
 		// context.Errorf(err2.Error())
 		log.Printf(err2.Error())
@@ -271,7 +263,7 @@ func Error(
 		"IsDevAppServer": true,
 	}
 
-	if err := TemplateError.ExecuteTemplate(buffer, "error.html", errorPage); err != nil {
+	if err := TemplateError.template.ExecuteTemplate(buffer, "error.html", errorPage); err != nil {
 		// context.Errorf("pages.Error: Executing template failed: %s", err)
 		log.Printf("pages.Error: Executing template failed: %s", err)
 		http.Error(responseWriter, "Internal Server Error", http.StatusInternalServerError)
@@ -285,37 +277,4 @@ func Error(
 		log.Printf("pages.Error: Writing template to buffer failed: %s", err)
 		http.Error(responseWriter, "Internal Server Error", http.StatusInternalServerError)
 	}
-}
-
-// NewTemplateWithRoot loads a root template and embeds the content template in
-// it. The content template is embedded at the location of
-// {{template "content" .}} in the root template.
-func NewTemplateWithRoot(rootTemplatePath, contentTemplatePath string, funcMap template.FuncMap) (*template.Template, error) {
-	paths := make([]string, 0, 2)
-	paths = append(paths, rootTemplatePath)
-
-	if contentTemplatePath != "" {
-		paths = append(paths, contentTemplatePath)
-	}
-
-	return template.New("root").Funcs(funcMap).ParseFiles(paths...)
-}
-
-// MustNewTemplateWithRoot calls NewTemplateWithRoot. If the root or content
-// template cannot be found, the function panics.
-func MustNewTemplateWithRoot(rootTemplatePath, contentTemplatePath string, funcMap template.FuncMap) *template.Template {
-	return template.Must(NewTemplateWithRoot(rootTemplatePath, contentTemplatePath, funcMap))
-}
-
-// NewTemplate loads the default root template specified by RootTemplatePath and
-// embeds the content template in it. The content template is embedded at the
-// location of {{template "content" .}} in the root template.
-func NewTemplate(contentTemplatePath string, funcMap template.FuncMap) (*template.Template, error) {
-	return NewTemplateWithRoot(RootTemplatePath, contentTemplatePath, funcMap)
-}
-
-// MustNewTemplate calls NewTemplate. If the root or content template cannot be
-// found, the function panics.
-func MustNewTemplate(contentTemplatePath string, funcMap template.FuncMap) *template.Template {
-	return template.Must(NewTemplate(contentTemplatePath, funcMap))
 }
