@@ -5,7 +5,6 @@ import (
 	"bytes"
 	"encoding/base64"
 	"fmt"
-	"html/template"
 	"log"
 	"net/http"
 	"net/url"
@@ -17,6 +16,11 @@ import (
 	"golang.org/x/net/context"
 )
 
+// Whether NewPage and MustNewPage should reload the provided template.
+// Reloading templates on each request is useful to see changes without
+// recompiling. In production, reloading should be disabled.
+var ReloadTemplates = false
+
 // Path to root template.
 var RootTemplatePath = "./templates/index.html"
 
@@ -25,7 +29,7 @@ var RootTemplatePath = "./templates/index.html"
 // rendered. To set a different template, set Template[Empty|Error|NotFound]
 // from the init function of package main.
 var (
-	TemplateEmpty    = template.Must(MustNewTemplate("", nil).Parse(`{{define "content"}}{{end}}`))
+	TemplateEmpty    = MustNewTemplate("", nil)
 	TemplateError    = MustNewTemplateWithRoot("./templates/error.html", "./templates/500-internal-server-error.html", nil)
 	TemplateNotFound = MustNewTemplate("./templates/404-not-found.html", nil)
 )
@@ -58,7 +62,7 @@ type Page struct {
 
 	Session *sessions.Session
 
-	Template *template.Template
+	Template *Template
 
 	// Title of the page that templates can use to populate the HTML <title>
 	// element.
@@ -67,7 +71,7 @@ type Page struct {
 	TranslateFunc languages.TranslateFunc
 }
 
-func NewPage(ctx context.Context, responseWriter http.ResponseWriter, request *http.Request, languageCode string, tpl *template.Template) (*Page, error) {
+func NewPage(ctx context.Context, responseWriter http.ResponseWriter, request *http.Request, languageCode string, tpl *Template) (*Page, error) {
 	session, ok := sessions.FromContext(ctx)
 	if !ok {
 		return nil, fmt.Errorf("pages.NewPage: sessions.Session is not provided by ctx.")
@@ -76,6 +80,12 @@ func NewPage(ctx context.Context, responseWriter http.ResponseWriter, request *h
 	translateFunc, ok := languages.FromContext(ctx)
 	if !ok {
 		return nil, fmt.Errorf("pages.NewPage: languages.TranslateFunc is not provided by ctx.")
+	}
+
+	if ReloadTemplates {
+		if err := tpl.Reload(); err != nil {
+			return nil, err
+		}
 	}
 
 	page := &Page{
@@ -92,7 +102,7 @@ func NewPage(ctx context.Context, responseWriter http.ResponseWriter, request *h
 }
 
 // MustNewPage calls NewPage and panics on error.
-func MustNewPage(ctx context.Context, responseWriter http.ResponseWriter, request *http.Request, languageCode string, tpl *template.Template) *Page {
+func MustNewPage(ctx context.Context, responseWriter http.ResponseWriter, request *http.Request, languageCode string, tpl *Template) *Page {
 	page, err := NewPage(ctx, responseWriter, request, languageCode, tpl)
 	if err != nil {
 		panic("pages.MustNewPage: " + err.Error())
@@ -153,7 +163,7 @@ func (p *Page) Serve(ctx context.Context) {
 		return
 	}
 
-	if err := p.Template.ExecuteTemplate(buffer, "index.html", p); err != nil {
+	if err := p.Template.template.ExecuteTemplate(buffer, "index.html", p); err != nil {
 		// context := appengine.NewContext(p.Request)
 		// context.Errorf(err.Error())
 		Error(ctx, p.ResponseWriter, p.Request, p.LanguageCode, p.TranslateFunc, err)
@@ -253,7 +263,7 @@ func Error(
 		"IsDevAppServer": true,
 	}
 
-	if err := TemplateError.ExecuteTemplate(buffer, "error.html", errorPage); err != nil {
+	if err := TemplateError.template.ExecuteTemplate(buffer, "error.html", errorPage); err != nil {
 		// context.Errorf("pages.Error: Executing template failed: %s", err)
 		log.Printf("pages.Error: Executing template failed: %s", err)
 		http.Error(responseWriter, "Internal Server Error", http.StatusInternalServerError)
@@ -267,37 +277,4 @@ func Error(
 		log.Printf("pages.Error: Writing template to buffer failed: %s", err)
 		http.Error(responseWriter, "Internal Server Error", http.StatusInternalServerError)
 	}
-}
-
-// NewTemplateWithRoot loads a root template and embeds the content template in
-// it. The content template is embedded at the location of
-// {{template "content" .}} in the root template.
-func NewTemplateWithRoot(rootTemplatePath, contentTemplatePath string, funcMap template.FuncMap) (*template.Template, error) {
-	paths := make([]string, 0, 2)
-	paths = append(paths, rootTemplatePath)
-
-	if contentTemplatePath != "" {
-		paths = append(paths, contentTemplatePath)
-	}
-
-	return template.New("root").Funcs(funcMap).ParseFiles(paths...)
-}
-
-// MustNewTemplateWithRoot calls NewTemplateWithRoot. If the root or content
-// template cannot be found, the function panics.
-func MustNewTemplateWithRoot(rootTemplatePath, contentTemplatePath string, funcMap template.FuncMap) *template.Template {
-	return template.Must(NewTemplateWithRoot(rootTemplatePath, contentTemplatePath, funcMap))
-}
-
-// NewTemplate loads the default root template specified by RootTemplatePath and
-// embeds the content template in it. The content template is embedded at the
-// location of {{template "content" .}} in the root template.
-func NewTemplate(contentTemplatePath string, funcMap template.FuncMap) (*template.Template, error) {
-	return NewTemplateWithRoot(RootTemplatePath, contentTemplatePath, funcMap)
-}
-
-// MustNewTemplate calls NewTemplate. If the root or content template cannot be
-// found, the function panics.
-func MustNewTemplate(contentTemplatePath string, funcMap template.FuncMap) *template.Template {
-	return template.Must(NewTemplate(contentTemplatePath, funcMap))
 }
