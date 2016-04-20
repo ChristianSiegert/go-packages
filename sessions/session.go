@@ -282,6 +282,9 @@ func NewContext(ctx context.Context, session *Session) context.Context {
 
 // FromContext extracts the session from ctx, if present.
 func FromContext(ctx context.Context) (*Session, bool) {
+	if ctx == nil {
+		return nil, false
+	}
 	session, ok := ctx.Value(key).(*Session)
 	return session, ok
 }
