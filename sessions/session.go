@@ -271,8 +271,7 @@ func CronDeleteExpired(interval time.Duration, expirationLength time.Duration) {
 // contextKey is used for attaching Session to context.Context.
 type contextKey int
 
-// key is the key used for storing and retrieving the session from
-// context.Context.
+// key used for storing and retrieving the session from context.Context.
 const key contextKey = 0
 
 // NewContext returns a new Context carrying session.

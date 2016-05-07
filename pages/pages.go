@@ -8,7 +8,9 @@ import (
 	"log"
 	"net/http"
 	"net/url"
+	"path"
 
+	"github.com/ChristianSiegert/go-packages/chttp"
 	"github.com/ChristianSiegert/go-packages/forms"
 	"github.com/ChristianSiegert/go-packages/html"
 	"github.com/ChristianSiegert/go-packages/i18n/languages"
@@ -53,12 +55,13 @@ type Page struct {
 
 	LanguageCode string
 
-	// Name is used to highlight the navigation link of the active page.
+	// Name of the page. Useful in the root template, e.g. to style the
+	// navigation link of the current page.
 	Name string
 
 	Request *http.Request
 
-	ResponseWriter http.ResponseWriter
+	responseWriter http.ResponseWriter
 
 	Session *sessions.Session
 
@@ -71,15 +74,20 @@ type Page struct {
 	TranslateFunc languages.TranslateFunc
 }
 
-func NewPage(ctx context.Context, responseWriter http.ResponseWriter, request *http.Request, languageCode string, tpl *Template) (*Page, error) {
-	session, ok := sessions.FromContext(ctx)
+func NewPage(ctx context.Context, languageCode string, tpl *Template) (*Page, error) {
+	responseWriter, request, ok := chttp.FromContext(ctx)
 	if !ok {
-		return nil, fmt.Errorf("pages.NewPage: sessions.Session is not provided by ctx.")
+		return nil, fmt.Errorf("pages.NewPage: http.ResponseWriter and http.Request are not provided by ctx.")
 	}
 
 	translateFunc, ok := languages.FromContext(ctx)
 	if !ok {
 		return nil, fmt.Errorf("pages.NewPage: languages.TranslateFunc is not provided by ctx.")
+	}
+
+	session, ok := sessions.FromContext(ctx)
+	if !ok {
+		return nil, fmt.Errorf("pages.NewPage: sessions.Session is not provided by ctx.")
 	}
 
 	if ReloadTemplates {
@@ -88,11 +96,16 @@ func NewPage(ctx context.Context, responseWriter http.ResponseWriter, request *h
 		}
 	}
 
+	form, err := forms.New(ctx)
+	if err != nil {
+		return nil, err
+	}
+
 	page := &Page{
-		Form:           forms.New(request),
+		Form:           form,
 		LanguageCode:   languageCode,
 		Request:        request,
-		ResponseWriter: responseWriter,
+		responseWriter: responseWriter,
 		Session:        session,
 		Template:       tpl,
 		TranslateFunc:  translateFunc,
@@ -102,8 +115,8 @@ func NewPage(ctx context.Context, responseWriter http.ResponseWriter, request *h
 }
 
 // MustNewPage calls NewPage and panics on error.
-func MustNewPage(ctx context.Context, responseWriter http.ResponseWriter, request *http.Request, languageCode string, tpl *Template) *Page {
-	page, err := NewPage(ctx, responseWriter, request, languageCode, tpl)
+func MustNewPage(ctx context.Context, languageCode string, tpl *Template) *Page {
+	page, err := NewPage(ctx, languageCode, tpl)
 	if err != nil {
 		panic("pages.MustNewPage: " + err.Error())
 	}
@@ -118,6 +131,10 @@ func (p *Page) AddBreadcrumb(title string, url *url.URL) *Breadcrumb {
 
 	p.Breadcrumbs = append(p.Breadcrumbs, breadcrumb)
 	return breadcrumb
+}
+
+func (p *Page) Redirect(urlStr string, code int) {
+	http.Redirect(p.responseWriter, p.Request, urlStr, code)
 }
 
 // RequireSignIn redirects users to the sign-in page specified by SignInUrl.
@@ -143,7 +160,7 @@ func (p *Page) RequireSignIn(pageTitle string) {
 		u.RawQuery = query.Encode()
 	}
 
-	http.Redirect(p.ResponseWriter, p.Request, u.String(), http.StatusSeeOther)
+	p.Redirect(u.String(), http.StatusSeeOther)
 }
 
 // Serve serves the template “index.html” into which it embeds the content
@@ -163,19 +180,19 @@ func (p *Page) Serve(ctx context.Context) {
 		return
 	}
 
-	if err := p.Template.template.ExecuteTemplate(buffer, "index.html", p); err != nil {
+	if err := p.Template.template.ExecuteTemplate(buffer, path.Base(p.Template.rootTemplatePath), p); err != nil {
 		// context := appengine.NewContext(p.Request)
 		// context.Errorf(err.Error())
-		Error(ctx, p.ResponseWriter, p.Request, p.LanguageCode, p.TranslateFunc, err)
+		Error(ctx, p.LanguageCode, p.TranslateFunc, err)
 		return
 	}
 
 	b := html.RemoveWhitespace(buffer.Bytes())
 
-	if _, err := bytes.NewBuffer(b).WriteTo(p.ResponseWriter); err != nil {
+	if _, err := bytes.NewBuffer(b).WriteTo(p.responseWriter); err != nil {
 		// context := appengine.NewContext(p.Request)
 		// context.Errorf(err.Error())
-		Error(ctx, p.ResponseWriter, p.Request, p.LanguageCode, p.TranslateFunc, err)
+		Error(ctx, p.LanguageCode, p.TranslateFunc, err)
 	}
 }
 
@@ -188,7 +205,7 @@ func (p *Page) ServeEmpty(ctx context.Context) {
 // ServeNotFound serves a page that tells the user the requested page does not
 // exist.
 func (page *Page) ServeNotFound(ctx context.Context) {
-	page.ResponseWriter.WriteHeader(http.StatusNotFound)
+	page.responseWriter.WriteHeader(http.StatusNotFound)
 	page.Template = TemplateNotFound
 	page.Serve(ctx)
 }
@@ -197,7 +214,7 @@ func (page *Page) ServeNotFound(ctx context.Context) {
 // be accessed due to insufficient access rights.
 func (p *Page) ServeUnauthorized(ctx context.Context) {
 	p.Session.AddFlashErrorMessage(p.TranslateFunc("err_unauthorized_access"))
-	p.ResponseWriter.WriteHeader(http.StatusUnauthorized)
+	p.responseWriter.WriteHeader(http.StatusUnauthorized)
 	p.ServeEmpty(ctx)
 }
 
@@ -215,7 +232,7 @@ func (p *Page) ServeWithError(ctx context.Context, err error) {
 
 // Error is an alias for pages.Error.
 func (p *Page) Error(ctx context.Context, err error) {
-	Error(ctx, p.ResponseWriter, p.Request, p.LanguageCode, p.TranslateFunc, err)
+	Error(ctx, p.LanguageCode, p.TranslateFunc, err)
 }
 
 // T returns the translation associated with translationId. If p.TranslateFunc
@@ -231,8 +248,6 @@ func (p *Page) T(translationId string, templateData ...map[string]interface{}) s
 // to the user but written to the error log.
 func Error(
 	ctx context.Context,
-	responseWriter http.ResponseWriter,
-	request *http.Request,
 	languageCode string,
 	translateFunc languages.TranslateFunc,
 	err error,
@@ -240,6 +255,11 @@ func Error(
 	// context := appengine.NewContext(request)
 	// context.Errorf(err.Error())
 	log.Printf(err.Error())
+
+	responseWriter, _, ok := chttp.FromContext(ctx)
+	if !ok {
+		panic("pages.Error: http.ResponseWriter and http.Request are not provided by ctx.")
+	}
 
 	if TemplateError == nil {
 		// context.Errorf("pages.Error: TemplateError is nil.")
@@ -250,7 +270,7 @@ func Error(
 
 	buffer := bytes.NewBuffer([]byte{})
 
-	errorPage, err2 := NewPage(ctx, responseWriter, request, languageCode, nil)
+	errorPage, err2 := NewPage(ctx, languageCode, nil)
 	if err2 != nil {
 		// context.Errorf(err2.Error())
 		log.Printf(err2.Error())
