@@ -5,7 +5,7 @@ import (
 	"testing"
 )
 
-func TestLanguage_TranslateFunc(t *testing.T) {
+func TestLanguage_T(t *testing.T) {
 	german := NewLanguage("de", "German")
 	german.Add("greeting", "Hallo {{.Name}}")
 
@@ -21,11 +21,11 @@ func TestLanguage_TranslateFunc(t *testing.T) {
 	}
 
 	var tests = []struct {
-		language          *Language
-		fallbackLanguages []*Language
-		translationId     string
-		args              []map[string]interface{}
-		expected          string
+		language      *Language
+		fallbacks     []*Language
+		translationId string
+		args          []map[string]interface{}
+		expected      string
 	}{
 		// Test: key exists in language
 		{german, nil, "greeting", args, "Hallo Christian"},
@@ -40,8 +40,9 @@ func TestLanguage_TranslateFunc(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		T := test.language.TranslateFunc(test.fallbackLanguages...)
-		if actual := T(test.translationId, test.args...); actual != test.expected {
+		test.language.Fallbacks = test.fallbacks
+
+		if actual := test.language.T(test.translationId, test.args...); actual != test.expected {
 			t.Errorf(
 				"Language %q: T(%q, %s): Expected %q, got %q.",
 				test.language.Name(),
@@ -55,21 +56,19 @@ func TestLanguage_TranslateFunc(t *testing.T) {
 }
 
 func Example() {
-	german := NewLanguage("de", "German")
-	german.Add("greeting", "Hallo")
+	language := NewLanguage("de", "German")
+	language.Add("greeting", "Hallo")
 
-	T := german.TranslateFunc()
-	text := T("greeting")
+	text := language.T("greeting")
 	fmt.Println(text)
 	// Output: Hallo
 }
 
 func Example_withData() {
-	german := NewLanguage("de", "German")
-	german.Add("greeting", "Hallo {{.Name}}")
+	language := NewLanguage("de", "German")
+	language.Add("greeting", "Hallo {{.Name}}")
 
-	T := german.TranslateFunc()
-	text := T("greeting", map[string]interface{}{"Name": "Christian"})
+	text := language.T("greeting", map[string]interface{}{"Name": "Christian"})
 	fmt.Println(text)
 	// Output: Hallo Christian
 }
@@ -85,12 +84,12 @@ func Example_withFallbackLanguages() {
 	spanish.Add("greeting", "Hola {{.Name}}")
 	spanish.Add("farewell", "Adiós {{.Name}}")
 
-	T := german.TranslateFunc(english, spanish)
+	german.Fallbacks = []*Language{english, spanish}
 
-	text := T("greeting", map[string]interface{}{"Name": "Christian"})
+	text := german.T("greeting", map[string]interface{}{"Name": "Christian"})
 	fmt.Println(text)
 
-	text = T("farewell", map[string]interface{}{"Name": "Christian"})
+	text = german.T("farewell", map[string]interface{}{"Name": "Christian"})
 	fmt.Println(text)
 	// Output:
 	// Hallo Christian
