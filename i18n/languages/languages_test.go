@@ -5,6 +5,31 @@ import (
 	"testing"
 )
 
+func TestLanguage_AddMulti(t *testing.T) {
+	language := NewLanguage("de", "German")
+	language.AddMulti(
+		"greeting", "Hallo",
+		"farewell", "Tschüss",
+	)
+
+	t.Logf("%s", language.translations)
+	t.Logf("%d", len(language.translations))
+
+	var tests = []struct {
+		translationId string
+		expected      string
+	}{
+		{"greeting", "Hallo"},
+		{"farewell", "Tschüss"},
+	}
+
+	for _, test := range tests {
+		if actual := language.T(test.translationId); actual != test.expected {
+			t.Errorf("T(%q): Expected %q, got %q.", test.translationId, test.expected, actual)
+		}
+	}
+}
+
 func TestLanguage_T(t *testing.T) {
 	german := NewLanguage("de", "German")
 	german.Add("greeting", "Hallo {{.Name}}")

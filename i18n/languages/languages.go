@@ -7,6 +7,7 @@ package languages
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"log"
 	"text/template"
@@ -49,6 +50,20 @@ func (l *Language) Add(translationId, translation string) *Translation {
 	t := &Translation{Other: tmpl}
 	l.translations[translationId] = t
 	return t
+}
+
+// AddMulti adds translations to the language. Args with an even index are used
+// as translation IDs and items with an odd index are used as translations.
+func (l *Language) AddMulti(args ...string) error {
+	if len(args)%2 != 0 {
+		return errors.New("languages.AddMulti: Number of translation IDs and translations does not match.")
+	}
+
+	for i, count := 0, len(args); i < count; i += 2 {
+		l.Add(args[i], args[i+1])
+	}
+
+	return nil
 }
 
 // Code returns the language code, e.g. “de”, “en” or “en-US”.
