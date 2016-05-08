@@ -53,7 +53,7 @@ type Page struct {
 	// Form is an instance of *forms.Form bound to the request.
 	Form *forms.Form
 
-	LanguageCode string
+	Language *languages.Language
 
 	// Name of the page. Useful in the root template, e.g. to style the
 	// navigation link of the current page.
@@ -70,19 +70,17 @@ type Page struct {
 	// Title of the page that templates can use to populate the HTML <title>
 	// element.
 	Title string
-
-	TranslateFunc languages.TranslateFunc
 }
 
-func NewPage(ctx context.Context, languageCode string, tpl *Template) (*Page, error) {
+func NewPage(ctx context.Context, tpl *Template) (*Page, error) {
 	responseWriter, request, ok := chttp.FromContext(ctx)
 	if !ok {
 		return nil, fmt.Errorf("pages.NewPage: http.ResponseWriter and http.Request are not provided by ctx.")
 	}
 
-	translateFunc, ok := languages.FromContext(ctx)
+	language, ok := languages.FromContext(ctx)
 	if !ok {
-		return nil, fmt.Errorf("pages.NewPage: languages.TranslateFunc is not provided by ctx.")
+		return nil, fmt.Errorf("pages.NewPage: languages.Language is not provided by ctx.")
 	}
 
 	session, ok := sessions.FromContext(ctx)
@@ -103,20 +101,19 @@ func NewPage(ctx context.Context, languageCode string, tpl *Template) (*Page, er
 
 	page := &Page{
 		Form:           form,
-		LanguageCode:   languageCode,
+		Language:       language,
 		Request:        request,
 		responseWriter: responseWriter,
 		Session:        session,
 		Template:       tpl,
-		TranslateFunc:  translateFunc,
 	}
 
 	return page, nil
 }
 
 // MustNewPage calls NewPage and panics on error.
-func MustNewPage(ctx context.Context, languageCode string, tpl *Template) *Page {
-	page, err := NewPage(ctx, languageCode, tpl)
+func MustNewPage(ctx context.Context, tpl *Template) *Page {
+	page, err := NewPage(ctx, tpl)
 	if err != nil {
 		panic("pages.MustNewPage: " + err.Error())
 	}
@@ -149,7 +146,7 @@ func (p *Page) RequireSignIn(pageTitle string) {
 		Opaque:   SignInUrl.Opaque,
 		User:     SignInUrl.User,
 		Host:     SignInUrl.Host,
-		Path:     fmt.Sprintf(SignInUrl.Path, p.LanguageCode),
+		Path:     fmt.Sprintf(SignInUrl.Path, p.Language.Code()),
 		Fragment: SignInUrl.Fragment,
 	}
 
@@ -183,7 +180,7 @@ func (p *Page) Serve(ctx context.Context) {
 	if err := p.Template.template.ExecuteTemplate(buffer, path.Base(p.Template.rootTemplatePath), p); err != nil {
 		// context := appengine.NewContext(p.Request)
 		// context.Errorf(err.Error())
-		Error(ctx, p.LanguageCode, p.TranslateFunc, err)
+		Error(ctx, err)
 		return
 	}
 
@@ -192,7 +189,7 @@ func (p *Page) Serve(ctx context.Context) {
 	if _, err := bytes.NewBuffer(b).WriteTo(p.responseWriter); err != nil {
 		// context := appengine.NewContext(p.Request)
 		// context.Errorf(err.Error())
-		Error(ctx, p.LanguageCode, p.TranslateFunc, err)
+		Error(ctx, err)
 	}
 }
 
@@ -213,7 +210,7 @@ func (page *Page) ServeNotFound(ctx context.Context) {
 // ServeUnauthorized serves a page that tells the user the requested page cannot
 // be accessed due to insufficient access rights.
 func (p *Page) ServeUnauthorized(ctx context.Context) {
-	p.Session.AddFlashErrorMessage(p.TranslateFunc("err_unauthorized_access"))
+	p.Session.AddFlashErrorMessage(p.T("err_unauthorized_access"))
 	p.responseWriter.WriteHeader(http.StatusUnauthorized)
 	p.ServeEmpty(ctx)
 }
@@ -226,32 +223,27 @@ func (p *Page) ServeUnauthorized(ctx context.Context) {
 func (p *Page) ServeWithError(ctx context.Context, err error) {
 	// context := appengine.NewContext(p.Request)
 	// context.Errorf(err.Error())
-	p.Session.AddFlashErrorMessage(p.TranslateFunc("err_internal_server_error"))
+	p.Session.AddFlashErrorMessage(p.T("err_internal_server_error"))
 	p.Serve(ctx)
 }
 
 // Error is an alias for pages.Error.
 func (p *Page) Error(ctx context.Context, err error) {
-	Error(ctx, p.LanguageCode, p.TranslateFunc, err)
+	Error(ctx, err)
 }
 
-// T returns the translation associated with translationId. If p.TranslateFunc
+// T returns the translation associated with translationId. If p.Language
 // is nil, translationId is returned.
 func (p *Page) T(translationId string, templateData ...map[string]interface{}) string {
-	if p.TranslateFunc == nil {
+	if p.Language == nil {
 		return translationId
 	}
-	return p.TranslateFunc(translationId, templateData...)
+	return p.Language.T(translationId, templateData...)
 }
 
 // Error serves an error page with a generic error message. Err is not displayed
 // to the user but written to the error log.
-func Error(
-	ctx context.Context,
-	languageCode string,
-	translateFunc languages.TranslateFunc,
-	err error,
-) {
+func Error(ctx context.Context, err error) {
 	// context := appengine.NewContext(request)
 	// context.Errorf(err.Error())
 	log.Printf(err.Error())
@@ -270,7 +262,7 @@ func Error(
 
 	buffer := bytes.NewBuffer([]byte{})
 
-	errorPage, err2 := NewPage(ctx, languageCode, nil)
+	errorPage, err2 := NewPage(ctx, nil)
 	if err2 != nil {
 		// context.Errorf(err2.Error())
 		log.Printf(err2.Error())

@@ -10,13 +10,15 @@ import (
 	"fmt"
 	"log"
 	"text/template"
-
-	"golang.org/x/net/context"
 )
 
 type Language struct {
 	// Language code, e.g. “de”, “en” or “en-US”.
 	code string
+
+	// Fallback languages to check when a translation is missing for this
+	// language.
+	Fallbacks []*Language
 
 	// Language name, e.g. “German”.
 	name string
@@ -24,10 +26,6 @@ type Language struct {
 	// Translation keys and associated translation text.
 	translations map[string]*Translation
 }
-
-// TranslateFunc looks up translationId, applies templateData to the translation
-// template and returns the result.
-type TranslateFunc func(translationId string, templateData ...map[string]interface{}) string
 
 // NewLanguage returns a new instance of Language. Code is the language code,
 // e.g. “de”, “en” or “en-US”. Name is the language name, e.g. “German”.
@@ -74,67 +72,34 @@ func (l *Language) Remove(translationId string) {
 	delete(l.translations, translationId)
 }
 
-// TranslateFunc returns a TranslateFunc that is bound to the language and
-// provided fallback languages.
-func (l *Language) TranslateFunc(fallbackLanguages ...*Language) TranslateFunc {
-	// Create list consisting of primary language followed by fallback languages
-	languages := make([]*Language, 1+len(fallbackLanguages))
-	languages[0] = l
-	for i, language := range fallbackLanguages {
-		languages[i+1] = language
+// T returns the translation associated with translationId. If the translation
+// is missing from l, l.Fallbacks will be checked. If the translation is still
+// missing, translationId is returned. Args is optional. The first item of args
+// is provided to the translation as data, additional items are ignored.
+func (l *Language) T(translationId string, args ...map[string]interface{}) string {
+	var templateData map[string]interface{}
+
+	if len(args) > 0 {
+		templateData = args[0]
 	}
 
-	return TranslateFunc(func(translationId string, args ...map[string]interface{}) string {
-		var templateData map[string]interface{}
+	languages := make([]*Language, 0, 1+len(l.Fallbacks))
+	languages = append(languages, l)
+	languages = append(languages, l.Fallbacks...)
 
-		if len(args) > 0 {
-			templateData = args[0]
+	// Find translation associated with translationId
+	for _, language := range languages {
+		translation := language.Get(translationId)
+		if translation == nil {
+			continue
 		}
 
-		// Find translation associated with translationId
-		for _, language := range languages {
-			translation := language.Get(translationId)
-			if translation == nil {
-				continue
-			}
+		var buf bytes.Buffer
 
-			var buf bytes.Buffer
-
-			if err := translation.Other.Execute(&buf, templateData); err != nil {
-				log.Fatalf("languages: Executing template failed: %s\n", err)
-			}
-			return buf.String()
+		if err := translation.Other.Execute(&buf, templateData); err != nil {
+			log.Fatalf("languages: Executing template failed: %s\n", err)
 		}
-		return translationId
-	})
-}
-
-// Translation allows to store multiple versions of a translation, one for each
-// quantity grouped defined in section Plural Rules on
-// http://cldr.unicode.org/index/cldr-spec/plural-rules .
-type Translation struct {
-	Zero,
-	One,
-	Two,
-	Few,
-	Many,
-	Other *template.Template
-}
-
-// contextKey is used for attaching TranslateFunc to context.Context.
-type contextKey int
-
-// key is the key used for storing and retrieving TranslateFunc from
-// context.Context.
-const key contextKey = 0
-
-// NewContext returns a new Context carrying TranslateFunc.
-func NewContext(ctx context.Context, translateFunc TranslateFunc) context.Context {
-	return context.WithValue(ctx, key, translateFunc)
-}
-
-// FromContext extracts TranslateFunc from ctx, if present.
-func FromContext(ctx context.Context) (TranslateFunc, bool) {
-	translateFunc, ok := ctx.Value(key).(TranslateFunc)
-	return translateFunc, ok
+		return buf.String()
+	}
+	return translationId
 }
