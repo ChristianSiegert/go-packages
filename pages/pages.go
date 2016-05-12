@@ -61,9 +61,9 @@ type Page struct {
 	// navigation link of the current page.
 	Name string
 
-	Request *http.Request
+	request *http.Request
 
-	ResponseWriter http.ResponseWriter
+	responseWriter http.ResponseWriter
 
 	Session *sessions.Session
 
@@ -104,8 +104,8 @@ func NewPage(ctx context.Context, tpl *Template) (*Page, error) {
 	page := &Page{
 		Form:           form,
 		Language:       language,
-		Request:        request,
-		ResponseWriter: responseWriter,
+		request:        request,
+		responseWriter: responseWriter,
 		Session:        session,
 		Template:       tpl,
 	}
@@ -133,7 +133,7 @@ func (p *Page) AddBreadcrumb(title string, url *url.URL) *Breadcrumb {
 }
 
 func (p *Page) Redirect(urlStr string, code int) {
-	http.Redirect(p.ResponseWriter, p.Request, urlStr, code)
+	http.Redirect(p.responseWriter, p.request, urlStr, code)
 }
 
 // RequireSignIn redirects users to the sign-in page specified by SignInUrl.
@@ -154,7 +154,7 @@ func (p *Page) RequireSignIn(pageTitle string) {
 
 	if SignInUrl.RawQuery == "" {
 		query := &url.Values{}
-		query.Add("r", p.Request.URL.Path)
+		query.Add("r", p.request.URL.Path)
 		query.Add("t", base64.URLEncoding.EncodeToString([]byte(pageTitle))) // TODO: Sign or encrypt parameter to prevent tempering by users
 		u.RawQuery = query.Encode()
 	}
@@ -169,7 +169,7 @@ func (p *Page) Error(err error) {
 
 	if TemplateError == nil {
 		log.Println("pages.Page.Error: TemplateError is nil.")
-		http.Error(p.ResponseWriter, "Internal Server Error", http.StatusInternalServerError)
+		http.Error(p.responseWriter, "Internal Server Error", http.StatusInternalServerError)
 		return
 	}
 
@@ -182,15 +182,15 @@ func (p *Page) Error(err error) {
 
 	if err := TemplateError.template.ExecuteTemplate(buffer, path.Base(TemplateError.rootTemplatePath), p); err != nil {
 		log.Printf("pages.Page.Error: Executing template failed: %s\n", err)
-		http.Error(p.ResponseWriter, "Internal Server Error", http.StatusInternalServerError)
+		http.Error(p.responseWriter, "Internal Server Error", http.StatusInternalServerError)
 		return
 	}
 
 	b := html.RemoveWhitespace(buffer.Bytes())
 
-	if _, err := bytes.NewBuffer(b).WriteTo(p.ResponseWriter); err != nil {
+	if _, err := bytes.NewBuffer(b).WriteTo(p.responseWriter); err != nil {
 		log.Printf("pages.Page.Error: Writing template to buffer failed: %s\n", err)
-		http.Error(p.ResponseWriter, "Internal Server Error", http.StatusInternalServerError)
+		http.Error(p.responseWriter, "Internal Server Error", http.StatusInternalServerError)
 	}
 }
 
@@ -217,7 +217,7 @@ func (p *Page) Serve() {
 
 	b := html.RemoveWhitespace(buffer.Bytes())
 
-	if _, err := bytes.NewBuffer(b).WriteTo(p.ResponseWriter); err != nil {
+	if _, err := bytes.NewBuffer(b).WriteTo(p.responseWriter); err != nil {
 		p.Error(err)
 	}
 }
@@ -231,7 +231,7 @@ func (p *Page) ServeEmpty() {
 // ServeNotFound serves a page that tells the user the requested page does not
 // exist.
 func (p *Page) ServeNotFound() {
-	p.ResponseWriter.WriteHeader(http.StatusNotFound)
+	p.responseWriter.WriteHeader(http.StatusNotFound)
 	p.Template = TemplateNotFound
 	p.Serve()
 }
@@ -240,7 +240,7 @@ func (p *Page) ServeNotFound() {
 // be accessed due to insufficient access rights.
 func (p *Page) ServeUnauthorized() {
 	p.Session.AddFlashError(p.T("err_unauthorized_access"))
-	p.ResponseWriter.WriteHeader(http.StatusUnauthorized)
+	p.responseWriter.WriteHeader(http.StatusUnauthorized)
 	p.ServeEmpty()
 }
 

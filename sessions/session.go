@@ -11,6 +11,7 @@ import (
 	"crypto/rand"
 	"database/sql"
 	"encoding/base64"
+	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -18,6 +19,7 @@ import (
 	"regexp"
 	"time"
 
+	"github.com/ChristianSiegert/go-packages/chttp"
 	"golang.org/x/net/context"
 )
 
@@ -35,17 +37,24 @@ var ExpirationLength = 14 * 24 * time.Hour
 var regExpSessionId = regexp.MustCompile("[0-9a-zA-Z=/+]{88}")
 
 type Session struct {
-	dateCreated time.Time
-	flashes     []Flash
-	id          string
-	userId      uint64
+	dateCreated    time.Time
+	flashes        []Flash
+	id             string
+	request        *http.Request
+	responseWriter http.ResponseWriter
+	userId         uint64
 
 	// isPersistent indicates whether the session was retrieved from the
 	// database. If false, the session was not yet saved to the database.
 	isPersistent bool
 }
 
-func newSession() (*Session, error) {
+func newSession(ctx context.Context) (*Session, error) {
+	responseWriter, request, ok := chttp.FromContext(ctx)
+	if !ok {
+		return nil, errors.New("sessions.newSession: http.ResponseWriter and http.Request are not provided by ctx.")
+	}
+
 	sessionId, err := generateSessionId()
 
 	if err != nil {
@@ -53,8 +62,10 @@ func newSession() (*Session, error) {
 	}
 
 	return &Session{
-		dateCreated: time.Now(),
-		id:          sessionId,
+		dateCreated:    time.Now(),
+		id:             sessionId,
+		request:        request,
+		responseWriter: responseWriter,
 	}, nil
 }
 
@@ -77,16 +88,21 @@ func (s *Session) SetUserId(userId uint64) error {
 	return nil
 }
 
-func Get(responseWriter http.ResponseWriter, request *http.Request) (*Session, error) {
+func Get(ctx context.Context) (*Session, error) {
+	responseWriter, request, ok := chttp.FromContext(ctx)
+	if !ok {
+		return nil, errors.New("sessions.Get: http.ResponseWriter and http.Request are not provided by ctx.")
+	}
+
 	cookie, err := request.Cookie(cookieName)
 
 	if err == http.ErrNoCookie {
-		return newSession()
+		return newSession(ctx)
 	}
 
 	if !isSessionId(cookie.Value) {
 		expireCookie(responseWriter, cookie)
-		return newSession()
+		return newSession(ctx)
 	}
 
 	session := &Session{
@@ -105,7 +121,7 @@ func Get(responseWriter http.ResponseWriter, request *http.Request) (*Session, e
 
 	if err == sql.ErrNoRows {
 		expireCookie(responseWriter, cookie)
-		return newSession()
+		return newSession(ctx)
 	} else if err != nil {
 		return nil, err
 	}
@@ -199,14 +215,14 @@ func (s *Session) AddFlashInfo(message string) Flash {
 
 // FlashAll returns all flashes belonging to session. By doing so, they are
 // removed from session.
-func (s *Session) FlashAll(responseWriter http.ResponseWriter, request *http.Request) []Flash {
+func (s *Session) FlashAll() []Flash {
 	f := s.flashes
 
 	if len(f) > 0 {
 		s.flashes = []Flash{}
 
 		if s.isPersistent {
-			if err := s.Save(responseWriter, request); err != nil {
+			if err := s.Save(s.responseWriter, s.request); err != nil {
 				log.Printf("sessions.Session.FlashAll: %s", err)
 			}
 		}
