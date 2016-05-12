@@ -4,6 +4,7 @@ package pages
 import (
 	"bytes"
 	"encoding/base64"
+	"errors"
 	"fmt"
 	"log"
 	"net/http"
@@ -23,18 +24,19 @@ import (
 // recompiling. In production, reloading should be disabled.
 var ReloadTemplates = false
 
-// Path to root template.
+// Path to template that is used as root template when
+// Page.Serve[Empty|NotFound|Unauthorized|WithError] is called.
 var RootTemplatePath = "./templates/index.html"
 
-// Templates that are used when Page.ServeEmpty, Error or Page.ServeNotFound is
-// called. If a template is nil, only the HTTP status code is set and nothing is
-// rendered. To set a different template, set Template[Empty|Error|NotFound]
-// from the init function of package main.
+// Templates that are used as content template when Page.ServeEmpty or
+// Page.ServeNotFound is called.
 var (
 	TemplateEmpty    = MustNewTemplate("", nil)
-	TemplateError    = MustNewTemplateWithRoot("./templates/error.html", "./templates/500-internal-server-error.html", nil)
 	TemplateNotFound = MustNewTemplate("./templates/404-not-found.html", nil)
 )
+
+// Template that is used as content template when Page.Error is called.
+var TemplateError = MustNewTemplateWithRoot("./templates/error.html", "./templates/500-internal-server-error.html", nil)
 
 // SignInUrl is the URL to the page that users are redirected to when
 // Page.RequireSignIn is called. If a %s placeholder is present in
@@ -61,7 +63,7 @@ type Page struct {
 
 	Request *http.Request
 
-	responseWriter http.ResponseWriter
+	ResponseWriter http.ResponseWriter
 
 	Session *sessions.Session
 
@@ -103,7 +105,7 @@ func NewPage(ctx context.Context, tpl *Template) (*Page, error) {
 		Form:           form,
 		Language:       language,
 		Request:        request,
-		responseWriter: responseWriter,
+		ResponseWriter: responseWriter,
 		Session:        session,
 		Template:       tpl,
 	}
@@ -131,7 +133,7 @@ func (p *Page) AddBreadcrumb(title string, url *url.URL) *Breadcrumb {
 }
 
 func (p *Page) Redirect(urlStr string, code int) {
-	http.Redirect(p.responseWriter, p.Request, urlStr, code)
+	http.Redirect(p.ResponseWriter, p.Request, urlStr, code)
 }
 
 // RequireSignIn redirects users to the sign-in page specified by SignInUrl.
@@ -160,10 +162,42 @@ func (p *Page) RequireSignIn(pageTitle string) {
 	p.Redirect(u.String(), http.StatusSeeOther)
 }
 
-// Serve serves the template “index.html” into which it embeds the content
-// template specified by page.Template. HTML comments and whitespace are
-// stripped. If page.Template is nil, an empty content template is embedded.
-func (p *Page) Serve(ctx context.Context) {
+// Error serves an error page with a generic error message. Err is not displayed
+// to the user but written to the error log.
+func (p *Page) Error(err error) {
+	log.Println(err.Error())
+
+	if TemplateError == nil {
+		log.Println("pages.Page.Error: TemplateError is nil.")
+		http.Error(p.ResponseWriter, "Internal Server Error", http.StatusInternalServerError)
+		return
+	}
+
+	buffer := bytes.NewBuffer([]byte{})
+
+	p.Data = map[string]interface{}{
+		"Error":          err,
+		"IsDevAppServer": true,
+	}
+
+	if err := TemplateError.template.ExecuteTemplate(buffer, path.Base(TemplateError.rootTemplatePath), p); err != nil {
+		log.Printf("pages.Page.Error: Executing template failed: %s\n", err)
+		http.Error(p.ResponseWriter, "Internal Server Error", http.StatusInternalServerError)
+		return
+	}
+
+	b := html.RemoveWhitespace(buffer.Bytes())
+
+	if _, err := bytes.NewBuffer(b).WriteTo(p.ResponseWriter); err != nil {
+		log.Printf("pages.Page.Error: Writing template to buffer failed: %s\n", err)
+		http.Error(p.ResponseWriter, "Internal Server Error", http.StatusInternalServerError)
+	}
+}
+
+// Serve serves the root template specified by RootTemplatePath with the content
+// template specified by p.Template. HTML comments and whitespace are stripped.
+// If p.Template is nil, an empty content template is embedded.
+func (p *Page) Serve() {
 	buffer := bytes.NewBuffer([]byte{})
 
 	if p.Template == nil {
@@ -172,47 +206,42 @@ func (p *Page) Serve(ctx context.Context) {
 
 	// If still nil
 	if p.Template == nil {
-		// context := appengine.NewContext(p.Request)
-		// context.Errorf("pages.Serve: Content template is nil. Serving blank page.")
+		p.Error(errors.New("pages.Page.Serve: p.Template is nil."))
 		return
 	}
 
 	if err := p.Template.template.ExecuteTemplate(buffer, path.Base(p.Template.rootTemplatePath), p); err != nil {
-		// context := appengine.NewContext(p.Request)
-		// context.Errorf(err.Error())
-		Error(ctx, err)
+		p.Error(err)
 		return
 	}
 
 	b := html.RemoveWhitespace(buffer.Bytes())
 
-	if _, err := bytes.NewBuffer(b).WriteTo(p.responseWriter); err != nil {
-		// context := appengine.NewContext(p.Request)
-		// context.Errorf(err.Error())
-		Error(ctx, err)
+	if _, err := bytes.NewBuffer(b).WriteTo(p.ResponseWriter); err != nil {
+		p.Error(err)
 	}
 }
 
 // ServeEmpty serves the root template without content template.
-func (p *Page) ServeEmpty(ctx context.Context) {
+func (p *Page) ServeEmpty() {
 	p.Template = TemplateEmpty
-	p.Serve(ctx)
+	p.Serve()
 }
 
 // ServeNotFound serves a page that tells the user the requested page does not
 // exist.
-func (page *Page) ServeNotFound(ctx context.Context) {
-	page.responseWriter.WriteHeader(http.StatusNotFound)
-	page.Template = TemplateNotFound
-	page.Serve(ctx)
+func (p *Page) ServeNotFound() {
+	p.ResponseWriter.WriteHeader(http.StatusNotFound)
+	p.Template = TemplateNotFound
+	p.Serve()
 }
 
 // ServeUnauthorized serves a page that tells the user the requested page cannot
 // be accessed due to insufficient access rights.
-func (p *Page) ServeUnauthorized(ctx context.Context) {
+func (p *Page) ServeUnauthorized() {
 	p.Session.AddFlashErrorMessage(p.T("err_unauthorized_access"))
-	p.responseWriter.WriteHeader(http.StatusUnauthorized)
-	p.ServeEmpty(ctx)
+	p.ResponseWriter.WriteHeader(http.StatusUnauthorized)
+	p.ServeEmpty()
 }
 
 // ServeWithError is similar to Serve, but additionally an error flash message
@@ -220,16 +249,11 @@ func (p *Page) ServeUnauthorized(ctx context.Context) {
 // displayed but written to the error log. This method is useful if the user
 // should be informed of a problem while the state, e.g. a filled in form, is
 // preserved.
-func (p *Page) ServeWithError(ctx context.Context, err error) {
+func (p *Page) ServeWithError(err error) {
 	// context := appengine.NewContext(p.Request)
 	// context.Errorf(err.Error())
 	p.Session.AddFlashErrorMessage(p.T("err_internal_server_error"))
-	p.Serve(ctx)
-}
-
-// Error is an alias for pages.Error.
-func (p *Page) Error(ctx context.Context, err error) {
-	Error(ctx, err)
+	p.Serve()
 }
 
 // T returns the translation associated with translationId. If p.Language
@@ -241,52 +265,7 @@ func (p *Page) T(translationId string, templateData ...map[string]interface{}) s
 	return p.Language.T(translationId, templateData...)
 }
 
-// Error serves an error page with a generic error message. Err is not displayed
-// to the user but written to the error log.
 func Error(ctx context.Context, err error) {
-	// context := appengine.NewContext(request)
-	// context.Errorf(err.Error())
-	log.Printf(err.Error())
-
-	responseWriter, _, ok := chttp.FromContext(ctx)
-	if !ok {
-		panic("pages.Error: http.ResponseWriter and http.Request are not provided by ctx.")
-	}
-
-	if TemplateError == nil {
-		// context.Errorf("pages.Error: TemplateError is nil.")
-		log.Printf("pages.Error: TemplateError is nil.")
-		http.Error(responseWriter, "Internal Server Error", http.StatusInternalServerError)
-		return
-	}
-
-	buffer := bytes.NewBuffer([]byte{})
-
-	errorPage, err2 := NewPage(ctx, nil)
-	if err2 != nil {
-		// context.Errorf(err2.Error())
-		log.Printf(err2.Error())
-		http.Error(responseWriter, "Internal Server Error", http.StatusInternalServerError)
-		return
-	}
-
-	errorPage.Data = map[string]interface{}{
-		"Error":          err,
-		"IsDevAppServer": true,
-	}
-
-	if err := TemplateError.template.ExecuteTemplate(buffer, "error.html", errorPage); err != nil {
-		// context.Errorf("pages.Error: Executing template failed: %s", err)
-		log.Printf("pages.Error: Executing template failed: %s", err)
-		http.Error(responseWriter, "Internal Server Error", http.StatusInternalServerError)
-		return
-	}
-
-	b := html.RemoveWhitespace(buffer.Bytes())
-
-	if _, err := bytes.NewBuffer(b).WriteTo(responseWriter); err != nil {
-		// context.Errorf("pages.Error: Writing template to buffer failed: %s", err)
-		log.Printf("pages.Error: Writing template to buffer failed: %s", err)
-		http.Error(responseWriter, "Internal Server Error", http.StatusInternalServerError)
-	}
+	page := MustNewPage(ctx, TemplateError)
+	page.Error(err)
 }
