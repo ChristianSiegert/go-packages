@@ -26,11 +26,6 @@ const (
 	cookiePath = "/"
 )
 
-const (
-	FlashTypeError = iota
-	FlashTypeInfo
-)
-
 // Database instance to use for saving and retrieving sessions.
 var Db *sql.DB
 
@@ -180,7 +175,8 @@ func (s *Session) IsSignedIn() bool {
 	return s.userId != 0
 }
 
-func (s *Session) AddFlashErrorMessage(message string) Flash {
+// AddFlashError adds a flash of type error to the session.
+func (s *Session) AddFlashError(message string) Flash {
 	flash := Flash{
 		Message: message,
 		Type:    FlashTypeError,
@@ -190,7 +186,8 @@ func (s *Session) AddFlashErrorMessage(message string) Flash {
 	return flash
 }
 
-func (s *Session) AddFlashInfoMessage(message string) Flash {
+// AddFlashInfo adds a flash of type info to the session.
+func (s *Session) AddFlashInfo(message string) Flash {
 	flash := Flash{
 		Message: message,
 		Type:    FlashTypeInfo,

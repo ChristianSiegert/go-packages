@@ -239,7 +239,7 @@ func (p *Page) ServeNotFound() {
 // ServeUnauthorized serves a page that tells the user the requested page cannot
 // be accessed due to insufficient access rights.
 func (p *Page) ServeUnauthorized() {
-	p.Session.AddFlashErrorMessage(p.T("err_unauthorized_access"))
+	p.Session.AddFlashError(p.T("err_unauthorized_access"))
 	p.ResponseWriter.WriteHeader(http.StatusUnauthorized)
 	p.ServeEmpty()
 }
@@ -252,7 +252,7 @@ func (p *Page) ServeUnauthorized() {
 func (p *Page) ServeWithError(err error) {
 	// context := appengine.NewContext(p.Request)
 	// context.Errorf(err.Error())
-	p.Session.AddFlashErrorMessage(p.T("err_internal_server_error"))
+	p.Session.AddFlashError(p.T("err_internal_server_error"))
 	p.Serve()
 }
 

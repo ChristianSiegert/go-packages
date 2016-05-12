@@ -35,10 +35,10 @@ func TestSession_RemoveFlash(t *testing.T) {
 	session := &Session{}
 
 	var (
-		flashError1 = session.AddFlashErrorMessage("foo error 1")
-		flashError2 = session.AddFlashErrorMessage("foo error 2")
-		flashError3 = session.AddFlashErrorMessage("foo error 3")
-		flashInfo   = session.AddFlashInfoMessage("foo info")
+		flashError1 = session.AddFlashError("foo error 1")
+		flashError2 = session.AddFlashError("foo error 2")
+		flashError3 = session.AddFlashError("foo error 3")
+		flashInfo   = session.AddFlashInfo("foo info")
 		// flashWarning = session.AddFlashWarnMessage("foo warning")
 	)
 
