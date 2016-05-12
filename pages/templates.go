@@ -30,7 +30,7 @@ func NewTemplateWithRoot(rootTemplatePath, contentTemplatePath string, funcMap t
 	return &Template{
 		contentTemplatePath: contentTemplatePath,
 		funcMap:             funcMap,
-		rootTemplatePath:    RootTemplatePath,
+		rootTemplatePath:    rootTemplatePath,
 		template:            tpl,
 	}, nil
 }
