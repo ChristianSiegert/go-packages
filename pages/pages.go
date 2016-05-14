@@ -77,17 +77,17 @@ type Page struct {
 func NewPage(ctx context.Context, tpl *Template) (*Page, error) {
 	responseWriter, request, ok := chttp.FromContext(ctx)
 	if !ok {
-		return nil, fmt.Errorf("pages.NewPage: http.ResponseWriter and http.Request are not provided by ctx.")
+		return nil, errors.New("pages.NewPage: http.ResponseWriter and http.Request are not provided by ctx.")
 	}
 
 	language, ok := languages.FromContext(ctx)
 	if !ok {
-		return nil, fmt.Errorf("pages.NewPage: languages.Language is not provided by ctx.")
+		return nil, errors.New("pages.NewPage: languages.Language is not provided by ctx.")
 	}
 
 	session, ok := sessions.FromContext(ctx)
 	if !ok {
-		return nil, fmt.Errorf("pages.NewPage: sessions.Session is not provided by ctx.")
+		return nil, errors.New("pages.NewPage: sessions.Session is not provided by ctx.")
 	}
 
 	if ReloadTemplates {
