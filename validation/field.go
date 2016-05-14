@@ -2,18 +2,34 @@ package validation
 
 import (
 	"fmt"
+	"regexp"
 	"time"
 	"unicode/utf8"
 )
 
+// Common types of rules. Rule types express what a rule is supposed to check.
+// This information can be used to improve input fields, e.g. HTML form fields
+// can use attributes that correspond with the rule type.
+const (
+	RuleTypeEmailAddress = iota + 1
+	RuleTypeMaxLength
+	RuleTypeMinLength
+	RuleTypeRequired
+)
+
+// Regular expression for validating an e-mail address.
+var eMailAddressRegExp = regexp.MustCompile("^[^@]+@[^@]+$")
+
+// A field can have zero or more validation rules that are used to validate the
+// field’s value.
 type Field struct {
 	Rules []*Rule
 	value interface{}
 }
 
-// Required checks if field’s value is an e-mail address. It only checks the
-// length and whether there is exactly one at-sign preceded and followed by at
-// least one character.
+// EmailAddress checks if the field’s value is an e-mail address. It only
+// checks the length and whether there is exactly one at-sign preceded and
+// followed by at least one character.
 func (f *Field) EmailAddress(errorMessage string) *Field {
 	f.Rules = append(f.Rules, &Rule{
 		Func: func(value interface{}) (bool, error) {
@@ -29,7 +45,7 @@ func (f *Field) EmailAddress(errorMessage string) *Field {
 	return f
 }
 
-// Equals checks if f’s value equals value2.
+// Equals checks if the field’s value equals value2.
 func (f *Field) Equals(value2 interface{}, message string) *Field {
 	f.Rules = append(f.Rules, &Rule{
 		Func: func(value interface{}) (bool, error) {
@@ -57,7 +73,7 @@ func (f *Field) Func(fn func(value interface{}) (bool, error), message string) *
 	return f
 }
 
-// MaxLength checks if field’s value has a maximum length of maxLength.
+// MaxLength checks if the field’s value has a maximum length of maxLength.
 func (f *Field) MaxLength(maxLength int, message string) *Field {
 	f.Rules = append(f.Rules, &Rule{
 		Func: func(value interface{}) (bool, error) {
@@ -77,7 +93,7 @@ func (f *Field) MaxLength(maxLength int, message string) *Field {
 	return f
 }
 
-// MinLength checks if field’s value has a minimum length of minLength.
+// MinLength checks if the field’s value has a minimum length of minLength.
 func (f *Field) MinLength(minLength int, message string) *Field {
 	f.Rules = append(f.Rules, &Rule{
 		Func: func(value interface{}) (bool, error) {
@@ -97,7 +113,7 @@ func (f *Field) MinLength(minLength int, message string) *Field {
 	return f
 }
 
-// Required checks if field’s value is non-zero.
+// Required checks if the field’s value is non-zero.
 func (f *Field) Required(message string) *Field {
 	f.Rules = append(f.Rules, &Rule{
 		Func: func(value interface{}) (bool, error) {
@@ -118,10 +134,11 @@ func (f *Field) Required(message string) *Field {
 	return f
 }
 
-// Validate checks if field is valid according to the specified rules. If it is
-// valid, the function returns true. If field is not valid, an error message is
-// returned. If an error occurred, error is returned. A returned error does not
-// mean field is invalid, it solely means something went wrong.
+// Validate checks if the field’s value is valid according to the specified
+// validation rules. If it is valid, the function returns true. If it is not
+// valid, the rule’s validation error message is returned. If an error
+// occurred, the error is returned. A returned error does not mean the value is
+// invalid, it solely means something went wrong.
 func (f *Field) Validate() (bool, string, error) {
 	for _, rule := range f.Rules {
 		if isValid, err := rule.Func(f.value); err != nil {

@@ -1,7 +1,6 @@
 package validation
 
-// Rule provides the function that is used to validate the input, as well as
-// information about that function.
+// Rule contains the validation function and information about it.
 type Rule struct {
 	// Arguments that Func was called with.
 	Args []interface{}
@@ -11,7 +10,7 @@ type Rule struct {
 	// it solely means something went wrong while validating.
 	Func func(interface{}) (bool, error)
 
-	// Message that informs the user if her input is not valid.
+	// Message that informs the user if her input is invalid.
 	Message string
 
 	// Type gives information about the rule type, e.g. RuleTypeMaxLength means

@@ -22,7 +22,7 @@ type Form struct {
 
 	request *http.Request
 
-	Validator *validation.Validator
+	ValidationFields validation.Fields
 }
 
 func New(ctx context.Context) (*Form, error) {
@@ -87,11 +87,11 @@ func (f *Form) Input(fieldName, placeholder string, attributes ...string) *eleme
 		}
 	}
 
-	if f.Validator == nil {
+	if f.ValidationFields == nil {
 		return element
 	}
 
-	if field, ok := f.Validator.Fields[fieldName]; ok {
+	if field, ok := f.ValidationFields[fieldName]; ok {
 		for _, rule := range field.Rules {
 			if rule.Type == validation.RuleTypeRequired {
 				element.Attributes["required"] = ""
@@ -237,11 +237,11 @@ func (f *Form) Textarea(fieldName, placeholder string) *elements.Element {
 		element.Text = strings.TrimSpace(value)
 	}
 
-	if f.Validator == nil {
+	if f.ValidationFields == nil {
 		return element
 	}
 
-	if field, ok := f.Validator.Fields[fieldName]; ok {
+	if field, ok := f.ValidationFields[fieldName]; ok {
 		for _, rule := range field.Rules {
 			if rule.Type == validation.RuleTypeRequired {
 				element.Attributes["required"] = ""
