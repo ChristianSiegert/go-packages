@@ -14,15 +14,16 @@ import (
 )
 
 type Form struct {
-	// ErrorMessages contains error messages that are displayed to the user if
-	// the corresponding form fields did not validate successfully. Each form
-	// field can only have one error message. The key is the field name, the
-	// value is the error message.
-	ErrorMessages map[string]string
-
 	request *http.Request
 
+	// ValidationFields is a map of field names and their corresponding
+	// *validation.Field. Used to get information about the fields’ validation
+	// rules.
 	ValidationFields validation.Fields
+
+	// ValidationMessages contains a validation error message for each form
+	// field that has an invalid value.
+	ValidationMessages validation.Messages
 }
 
 func New(ctx context.Context) (*Form, error) {
@@ -36,9 +37,11 @@ func New(ctx context.Context) (*Form, error) {
 	}, nil
 }
 
+// Error returns a <div class="validation-error"> element that contains the
+// validation error message as text.
 func (f *Form) Error(fieldName string) *elements.Element {
-	errorMessage, ok := f.ErrorMessages[fieldName]
-	if !ok || errorMessage == "" {
+	validationMessage, ok := f.ValidationMessages[fieldName]
+	if !ok || validationMessage == "" {
 		return nil
 	}
 
@@ -48,16 +51,18 @@ func (f *Form) Error(fieldName string) *elements.Element {
 		},
 		HasEndTag: true,
 		TagName:   "div",
-		Text:      errorMessage,
+		Text:      validationMessage,
 	}
 	return element
 }
 
+// HasError returns whether the field’s value is invalid.
 func (f *Form) HasError(fieldName string) bool {
-	_, ok := f.ErrorMessages[fieldName]
+	_, ok := f.ValidationMessages[fieldName]
 	return ok
 }
 
+// Input returns an <input> element.
 func (f *Form) Input(fieldName, placeholder string, attributes ...string) *elements.Element {
 	element := &elements.Element{
 		Attributes: map[string]string{
@@ -110,6 +115,7 @@ func (f *Form) Input(fieldName, placeholder string, attributes ...string) *eleme
 	return element
 }
 
+// Checkbox returns an <input type="checkbox"> element.
 func (f *Form) Checkbox(fieldName, value string) *elements.Element {
 	element := f.Input(fieldName, "")
 	element.Attributes["id"] = fieldName + "-" + value
@@ -128,6 +134,7 @@ func (f *Form) Checkbox(fieldName, value string) *elements.Element {
 	return element
 }
 
+// Email returns an <input type="email"> element.
 func (f *Form) Email(fieldName, placeholder string) *elements.Element {
 	element := f.Input(fieldName, placeholder)
 	element.Attributes["type"] = "email"
@@ -138,12 +145,14 @@ func (f *Form) Email(fieldName, placeholder string) *elements.Element {
 	return element
 }
 
+// Number returns an <input type="number"> element.
 func (f *Form) Number(fieldName, placeholder string, attributes ...string) *elements.Element {
 	element := f.Input(fieldName, placeholder, attributes...)
 	element.Attributes["type"] = "number"
 	return element
 }
 
+// Radio returns an <input type="radio"> element.
 func (f *Form) Radio(fieldName, value string) *elements.Element {
 	element := f.Input(fieldName, "")
 	element.Attributes["id"] = fieldName + "-" + value
@@ -156,24 +165,28 @@ func (f *Form) Radio(fieldName, value string) *elements.Element {
 	return element
 }
 
+// Password returns an <input type="password"> element.
 func (f *Form) Password(fieldName, placeholder string) *elements.Element {
 	element := f.Input(fieldName, placeholder)
 	element.Attributes["type"] = "password"
 	return element
 }
 
+// Search returns an <input type="search"> element.
 func (f *Form) Search(fieldName, placeholder string, attributes ...string) *elements.Element {
 	element := f.Input(fieldName, placeholder, attributes...)
 	element.Attributes["type"] = "search"
 	return element
 }
 
+// Text returns an <input type="text"> element.
 func (f *Form) Text(fieldName, placeholder string, attributes ...string) *elements.Element {
 	element := f.Input(fieldName, placeholder, attributes...)
 	element.Attributes["type"] = "text"
 	return element
 }
 
+// Select returns a <select> element.
 func (f *Form) Select(fieldName string, options []*Option) *elements.Element {
 	element := &elements.Element{
 		Attributes: map[string]string{
@@ -204,6 +217,7 @@ func (f *Form) Select(fieldName string, options []*Option) *elements.Element {
 	return element
 }
 
+// Option returns an <option> element.
 func (f *Form) Option(value, label string) *elements.Element {
 	return &elements.Element{
 		Attributes: map[string]string{
@@ -215,6 +229,7 @@ func (f *Form) Option(value, label string) *elements.Element {
 	}
 }
 
+// Textarea returns a <textarea> element.
 func (f *Form) Textarea(fieldName, placeholder string) *elements.Element {
 	element := &elements.Element{
 		Attributes: map[string]string{
