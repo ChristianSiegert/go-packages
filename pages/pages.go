@@ -250,8 +250,7 @@ func (p *Page) ServeUnauthorized() {
 // should be informed of a problem while the state, e.g. a filled in form, is
 // preserved.
 func (p *Page) ServeWithError(err error) {
-	// context := appengine.NewContext(p.Request)
-	// context.Errorf(err.Error())
+	log.Println(err.Error())
 	p.Session.AddFlashError(p.T("err_internal_server_error"))
 	p.Serve()
 }
