@@ -31,7 +31,7 @@ var RootTemplatePath = "./templates/index.html"
 // Templates that are used as content template when Page.ServeEmpty or
 // Page.ServeNotFound is called.
 var (
-	TemplateEmpty    = MustNewTemplate("", nil)
+	TemplateEmpty    = MustNewTemplate("./templates/empty.html", nil)
 	TemplateNotFound = MustNewTemplate("./templates/404-not-found.html", nil)
 )
 
