@@ -233,6 +233,7 @@ func (p *Page) ServeEmpty() {
 func (p *Page) ServeNotFound() {
 	p.responseWriter.WriteHeader(http.StatusNotFound)
 	p.Template = TemplateNotFound
+	p.Title = p.T("err_page_not_found")
 	p.Serve()
 }
 
