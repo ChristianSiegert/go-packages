@@ -126,6 +126,7 @@ func (p *Page) AddBreadcrumb(title string, url *url.URL) *Breadcrumb {
 	return breadcrumb
 }
 
+// Redirect redirects the client.
 func (p *Page) Redirect(urlStr string, code int) {
 	http.Redirect(p.responseWriter, p.request, urlStr, code)
 }
