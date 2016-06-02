@@ -90,12 +90,6 @@ func NewPage(ctx context.Context, tpl *Template) (*Page, error) {
 		return nil, errors.New("pages.NewPage: sessions.Session is not provided by ctx.")
 	}
 
-	if ReloadTemplates {
-		if err := tpl.Reload(); err != nil {
-			return nil, err
-		}
-	}
-
 	form, err := forms.New(ctx)
 	if err != nil {
 		return nil, err
@@ -180,6 +174,12 @@ func (p *Page) Error(err error) {
 		"IsDevAppServer": true,
 	}
 
+	if ReloadTemplates {
+		if err := p.Template.Reload(); err != nil {
+			p.Error(err)
+		}
+	}
+
 	if err := TemplateError.template.ExecuteTemplate(buffer, path.Base(TemplateError.rootTemplatePath), p); err != nil {
 		log.Printf("pages.Page.Error: Executing template failed: %s\n", err)
 		http.Error(p.responseWriter, "Internal Server Error", http.StatusInternalServerError)
@@ -208,6 +208,12 @@ func (p *Page) Serve() {
 	if p.Template == nil {
 		p.Error(errors.New("pages.Page.Serve: p.Template is nil."))
 		return
+	}
+
+	if ReloadTemplates {
+		if err := p.Template.Reload(); err != nil {
+			p.Error(err)
+		}
 	}
 
 	if err := p.Template.template.ExecuteTemplate(buffer, path.Base(p.Template.rootTemplatePath), p); err != nil {
