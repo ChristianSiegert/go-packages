@@ -1,4 +1,5 @@
-// Package sessions provides database sessions for SQLite.
+// Package sessions provides database sessions for PostgreSQL. sessions expects
+// Db to be set before
 // An SQL table with the following structure must exist:
 //		CREATE TABLE sessions (
 //			dateCreated INTEGER NOT NULL,
@@ -40,9 +41,11 @@ type Session struct {
 	dateCreated    time.Time
 	flashes        []Flash
 	id             string
+	isAdmin        bool
 	request        *http.Request
 	responseWriter http.ResponseWriter
-	userId         uint64
+	userId         int64
+	username       string
 
 	// isPersistent indicates whether the session was retrieved from the
 	// database. If false, the session was not yet saved to the database.
@@ -56,7 +59,6 @@ func newSession(ctx context.Context) (*Session, error) {
 	}
 
 	sessionId, err := generateSessionId()
-
 	if err != nil {
 		return nil, err
 	}
@@ -74,13 +76,18 @@ func (s *Session) Id() string {
 	return s.id
 }
 
+// IsAdmin returns whether the user has admin rights.
+func (s *Session) IsAdmin() bool {
+	return s.isAdmin
+}
+
 // UserId returns the id of the user.
-func (s *Session) UserId() uint64 {
+func (s *Session) UserId() int64 {
 	return s.userId
 }
 
 // SetUserId sets the id of the user.
-func (s *Session) SetUserId(userId uint64) error {
+func (s *Session) SetUserId(userId int64) error {
 	if s.userId != 0 {
 		return fmt.Errorf("User id is already set.")
 	}
@@ -106,16 +113,16 @@ func Get(ctx context.Context) (*Session, error) {
 	}
 
 	session := &Session{
-		id: cookie.Value,
+		id:             cookie.Value,
+		request:        request,
+		responseWriter: responseWriter,
 	}
 
-	query := "SELECT dateCreated, userId FROM sessions WHERE id = ? LIMIT 1"
+	query := "SELECT date_created, user_id FROM sessions WHERE id = $1 LIMIT 1"
 	row := Db.QueryRow(query, session.id)
 
-	var tempDateCreated int64
-
 	err = row.Scan(
-		&tempDateCreated,
+		&session.dateCreated,
 		&session.userId,
 	)
 
@@ -126,16 +133,15 @@ func Get(ctx context.Context) (*Session, error) {
 		return nil, err
 	}
 
-	session.dateCreated = time.Unix(tempDateCreated, 0)
 	session.isPersistent = true
 	return session, nil
 }
 
-func (s *Session) Save(responseWriter http.ResponseWriter, request *http.Request) error {
-	if _, err := request.Cookie(cookieName); err == http.ErrNoCookie {
+func (s *Session) Save() error {
+	if _, err := s.request.Cookie(cookieName); err == http.ErrNoCookie {
 		dateExpires := s.dateCreated.Add(ExpirationLength)
 
-		http.SetCookie(responseWriter, &http.Cookie{
+		http.SetCookie(s.responseWriter, &http.Cookie{
 			Expires:  dateExpires,
 			HttpOnly: true,
 			MaxAge:   int(dateExpires.Sub(time.Now()).Seconds()),
@@ -146,24 +152,21 @@ func (s *Session) Save(responseWriter http.ResponseWriter, request *http.Request
 	}
 
 	query := `
-		INSERT OR REPLACE INTO sessions (
-			dateCreated, id, userId
+		INSERT INTO sessions (
+			date_created, id, user_id
 		) VALUES (
-			?, ?, ?
-		)
+			$1, $2, $3
+		) ON CONFLICT DO NOTHING
 	`
 
-	_, err := Db.Exec(query, s.dateCreated.Unix(), s.id, s.userId)
-	if err != nil {
-		return err
-	}
-	return nil
+	_, err := Db.Exec(query, s.dateCreated, s.id, s.userId)
+	return err
 }
 
 // Expire expires the session by deleting it from the database, and by deleting
 // the client’s session cookie.
-func (s *Session) Expire(responseWriter http.ResponseWriter, request *http.Request) error {
-	query := "DELETE FROM sessions WHERE id = ?"
+func (s *Session) Expire() error {
+	query := "DELETE FROM sessions WHERE id = $1"
 	if _, err := Db.Exec(query, s.id); err != nil {
 		return err
 	}
@@ -172,8 +175,8 @@ func (s *Session) Expire(responseWriter http.ResponseWriter, request *http.Reque
 	s.isPersistent = false
 
 	// If a cookie exists, expire it.
-	if cookie, err := request.Cookie(cookieName); err == nil {
-		expireCookie(responseWriter, cookie)
+	if cookie, err := s.request.Cookie(cookieName); err == nil {
+		expireCookie(s.responseWriter, cookie)
 	}
 
 	return nil
@@ -187,8 +190,15 @@ func expireCookie(responseWriter http.ResponseWriter, cookie *http.Cookie) {
 	http.SetCookie(responseWriter, cookie)
 }
 
+// IsSignedIn returns whether the user is signed in.
 func (s *Session) IsSignedIn() bool {
 	return s.userId != 0
+}
+
+func (s *Session) SignIn(userId int64, username string, isAdmin bool) {
+	s.isAdmin = isAdmin
+	s.userId = userId
+	s.username = username
 }
 
 // AddFlashError adds a flash of type error to the session.
@@ -222,7 +232,7 @@ func (s *Session) FlashAll() []Flash {
 		s.flashes = []Flash{}
 
 		if s.isPersistent {
-			if err := s.Save(s.responseWriter, s.request); err != nil {
+			if err := s.Save(); err != nil {
 				log.Printf("sessions.Session.FlashAll: %s", err)
 			}
 		}
@@ -239,16 +249,15 @@ func (s *Session) RemoveFlash(flash Flash) {
 	}
 }
 
-// generateSessionId generates a unique identifier and encodes it in Base64 so
-// it can be stored in cookies.
+// generateSessionId generates a 528-bit long session token and encodes it in
+// Base64.
 func generateSessionId() (string, error) {
-	length := 64
+	length := 66
 	key := make([]byte, length)
 
 	if _, err := io.ReadFull(rand.Reader, key); err != nil {
 		return "", err
 	}
-
 	return base64.StdEncoding.EncodeToString(key), nil
 }
 
