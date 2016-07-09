@@ -127,8 +127,8 @@ func (p *Page) AddBreadcrumb(title string, url *url.URL) *Breadcrumb {
 }
 
 // Redirect redirects the client.
-func (p *Page) Redirect(urlStr string, code int) {
-	http.Redirect(p.responseWriter, p.request, urlStr, code)
+func (p *Page) Redirect(url string, code int) {
+	http.Redirect(p.responseWriter, p.request, url, code)
 }
 
 // RequireSignIn redirects users to the sign-in page specified by SignInUrl.
