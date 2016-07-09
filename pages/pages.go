@@ -217,7 +217,8 @@ func (p *Page) Serve() {
 		}
 	}
 
-	if err := p.Template.template.ExecuteTemplate(buffer, path.Base(p.Template.rootTemplatePath), p); err != nil {
+	templateName := path.Base(p.Template.rootTemplatePath)
+	if err := p.Template.template.ExecuteTemplate(buffer, templateName, p); err != nil {
 		p.Error(err)
 		return
 	}
