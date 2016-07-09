@@ -19,9 +19,9 @@ import (
 	"golang.org/x/net/context"
 )
 
-// Whether NewPage and MustNewPage should reload the provided template.
-// Reloading templates on each request is useful to see changes without
-// recompiling. In production, reloading should be disabled.
+// Whether NewPage and MustNewPage should reload templates on every request.
+// Reloading templates is useful to see changes without recompiling. In
+// production, reloading should be disabled.
 var ReloadTemplates = false
 
 // Path to template that is used as root template when
