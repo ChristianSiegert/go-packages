@@ -177,7 +177,8 @@ func (p *Page) Error(err error) {
 
 	if ReloadTemplates {
 		if err := p.Template.Reload(); err != nil {
-			p.Error(err)
+			log.Printf("pages.Page.Error: Reloading template failed:\n%s\n%s\n", p.Template.rootTemplatePath, p.Template.contentTemplatePath)
+			http.Error(p.responseWriter, "Internal Server Error", http.StatusInternalServerError)
 		}
 	}
 
