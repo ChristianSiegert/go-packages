@@ -243,7 +243,7 @@ func (p *Page) ServeNotFound() {
 
 	p.responseWriter.WriteHeader(http.StatusNotFound)
 	p.Template = TemplateNotFound
-	p.Title = p.T("err_page_not_found")
+	p.Title = p.T("err_404_not_found")
 	p.Serve()
 }
 
@@ -262,7 +262,7 @@ func (p *Page) ServeUnauthorized() {
 // preserved.
 func (p *Page) ServeWithError(err error) {
 	log.Println(err.Error())
-	p.Session.AddFlashError(p.T("err_internal_server_error"))
+	p.Session.AddFlashError(p.T("err_505_internal_server_error"))
 	p.Serve()
 }
 
