@@ -24,19 +24,15 @@ import (
 // production, reloading should be disabled.
 var ReloadTemplates = false
 
-// Path to template that is used as root template when
-// Page.Serve[Empty|NotFound|Unauthorized|WithError] is called.
-var RootTemplatePath = "./templates/index.html"
-
 // Templates that are used as content template when Page.ServeEmpty or
 // Page.ServeNotFound is called.
 var (
-	TemplateEmpty    = MustNewTemplate("./templates/empty.html", nil)
-	TemplateNotFound = MustNewTemplate("./templates/404-not-found.html", nil)
+	TemplateEmpty    *Template
+	TemplateNotFound *Template
 )
 
 // Template that is used as content template when Page.Error is called.
-var TemplateError = MustNewTemplateWithRoot("./templates/error.html", "./templates/500-internal-server-error.html", nil)
+var TemplateError *Template
 
 // SignInUrl is the URL to the page that users are redirected to when
 // Page.RequireSignIn is called. If a %s placeholder is present in
@@ -240,6 +236,11 @@ func (p *Page) ServeEmpty() {
 // ServeNotFound serves a page that tells the user the requested page does not
 // exist.
 func (p *Page) ServeNotFound() {
+	if TemplateNotFound == nil {
+		http.Error(p.responseWriter, p.T("err_404_not_found"), http.StatusNotFound)
+		return
+	}
+
 	p.responseWriter.WriteHeader(http.StatusNotFound)
 	p.Template = TemplateNotFound
 	p.Title = p.T("err_page_not_found")
