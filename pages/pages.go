@@ -163,7 +163,7 @@ func (p *Page) Error(err error) {
 	log.Println(err.Error())
 
 	if TemplateError == nil {
-		log.Println("pages.Page.Error: TemplateError is nil.")
+		log.Println("pages.Page.Error: No error template provided.")
 		http.Error(p.responseWriter, "Internal Server Error", http.StatusInternalServerError)
 		return
 	}
@@ -208,7 +208,7 @@ func (p *Page) Serve() {
 
 	// If still nil
 	if p.Template == nil {
-		p.Error(errors.New("pages.Page.Serve: p.Template is nil."))
+		p.Error(errors.New("pages.Page.Serve: No template provided."))
 		return
 	}
 
