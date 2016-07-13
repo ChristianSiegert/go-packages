@@ -18,10 +18,8 @@ func (t *Template) Reload() error {
 	return err
 }
 
-// NewTemplateWithRoot loads a root template and embeds the content template in
-// it. The content template is embedded at the location of
-// {{template "content" .}} in the root template.
-func NewTemplateWithRoot(rootTemplatePath, contentTemplatePath string, funcMap template.FuncMap) (*Template, error) {
+// NewTemplate loads a template consisting of two template files.
+func NewTemplate(rootTemplatePath, contentTemplatePath string, funcMap template.FuncMap) (*Template, error) {
 	tpl, err := load(rootTemplatePath, contentTemplatePath, funcMap)
 	if err != nil {
 		return nil, err
@@ -35,23 +33,10 @@ func NewTemplateWithRoot(rootTemplatePath, contentTemplatePath string, funcMap t
 	}, nil
 }
 
-// MustNewTemplateWithRoot calls NewTemplateWithRoot. If the root or content
-// template cannot be found, the function panics.
-func MustNewTemplateWithRoot(rootTemplatePath, contentTemplatePath string, funcMap template.FuncMap) *Template {
-	return Must(NewTemplateWithRoot(rootTemplatePath, contentTemplatePath, funcMap))
-}
-
-// NewTemplate loads the default root template specified by RootTemplatePath and
-// embeds the content template in it. The content template is embedded at the
-// location of {{template "content" .}} in the root template.
-func NewTemplate(contentTemplatePath string, funcMap template.FuncMap) (*Template, error) {
-	return NewTemplateWithRoot(RootTemplatePath, contentTemplatePath, funcMap)
-}
-
 // MustNewTemplate calls NewTemplate. If the root or content template cannot be
 // found, the function panics.
-func MustNewTemplate(contentTemplatePath string, funcMap template.FuncMap) *Template {
-	return Must(NewTemplate(contentTemplatePath, funcMap))
+func MustNewTemplate(rootTemplatePath, contentTemplatePath string, funcMap template.FuncMap) *Template {
+	return Must(NewTemplate(rootTemplatePath, contentTemplatePath, funcMap))
 }
 
 // Must panics if err is not nil.
