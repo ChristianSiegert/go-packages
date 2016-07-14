@@ -24,15 +24,14 @@ import (
 // production, reloading should be disabled.
 var ReloadTemplates = false
 
-// Templates that are used as content template when Page.ServeEmpty or
-// Page.ServeNotFound is called.
-var (
-	TemplateEmpty    *Template
-	TemplateNotFound *Template
-)
+// Template that is used when Page.ServeEmpty is called.
+var TemplateEmpty *Template
 
-// Template that is used as content template when Page.Error is called.
+// Template that is used when Page.Error is called.
 var TemplateError *Template
+
+// Template that is used when Page.ServeNotFound is called.
+var TemplateNotFound *Template
 
 // SignInUrl is the URL to the page that users are redirected to when
 // Page.RequireSignIn is called. If a %s placeholder is present in
@@ -173,12 +172,13 @@ func (p *Page) Error(err error) {
 
 	if ReloadTemplates {
 		if err := p.Template.Reload(); err != nil {
-			log.Printf("pages.Page.Error: Reloading template failed:\n%s\n%s\n", p.Template.rootTemplatePath, p.Template.contentTemplatePath)
+			log.Printf("pages.Page.Error: Reloading template failed: %s\n", p.Template.paths)
 			http.Error(p.responseWriter, "Internal Server Error", http.StatusInternalServerError)
 		}
 	}
 
-	if err := TemplateError.template.ExecuteTemplate(buffer, path.Base(TemplateError.rootTemplatePath), p); err != nil {
+	templateName := path.Base(TemplateError.paths[0])
+	if err := TemplateError.template.ExecuteTemplate(buffer, templateName, p); err != nil {
 		log.Printf("pages.Page.Error: Executing template failed: %s\n", err)
 		http.Error(p.responseWriter, "Internal Server Error", http.StatusInternalServerError)
 		return
@@ -214,7 +214,7 @@ func (p *Page) Serve() {
 		}
 	}
 
-	templateName := path.Base(p.Template.rootTemplatePath)
+	templateName := path.Base(p.Template.paths[0])
 	if err := p.Template.template.ExecuteTemplate(buffer, templateName, p); err != nil {
 		p.Error(err)
 		return
