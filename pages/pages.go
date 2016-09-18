@@ -11,12 +11,10 @@ import (
 	"net/url"
 	"path"
 
-	"github.com/ChristianSiegert/go-packages/chttp"
 	"github.com/ChristianSiegert/go-packages/forms"
 	"github.com/ChristianSiegert/go-packages/html"
 	"github.com/ChristianSiegert/go-packages/i18n/languages"
 	"github.com/ChristianSiegert/go-packages/sessions"
-	"golang.org/x/net/context"
 )
 
 // Whether NewPage and MustNewPage should reload templates on every request.
@@ -58,8 +56,6 @@ type Page struct {
 
 	request *http.Request
 
-	responseWriter http.ResponseWriter
-
 	Session *sessions.Session
 
 	Template *Template
@@ -67,44 +63,44 @@ type Page struct {
 	// Title of the page that templates can use to populate the HTML <title>
 	// element.
 	Title string
+
+	writer http.ResponseWriter
 }
 
-func NewPage(ctx context.Context, tpl *Template) (*Page, error) {
-	responseWriter, request, ok := chttp.FromContext(ctx)
-	if !ok {
-		return nil, errors.New("pages.NewPage: http.ResponseWriter and http.Request are not provided by ctx.")
-	}
+func NewPage(writer http.ResponseWriter, request *http.Request, tpl *Template) (*Page, error) {
+	ctx := request.Context()
 
 	language, ok := languages.FromContext(ctx)
 	if !ok {
-		return nil, errors.New("pages.NewPage: languages.Language is not provided by ctx.")
+		return nil, errors.New("pages.NewPage: languages.Language is not provided by context.")
 	}
 
 	session, ok := sessions.FromContext(ctx)
 	if !ok {
-		return nil, errors.New("pages.NewPage: sessions.Session is not provided by ctx.")
+		return nil, errors.New("pages.NewPage: sessions.Session is not provided by context.")
 	}
 
-	form, err := forms.New(ctx)
+	form, err := forms.New(request)
 	if err != nil {
 		return nil, err
 	}
 
 	page := &Page{
-		Form:           form,
-		Language:       language,
-		request:        request,
-		responseWriter: responseWriter,
-		Session:        session,
-		Template:       tpl,
+		Data:     make(map[string]interface{}),
+		Form:     form,
+		Language: language,
+		request:  request,
+		Session:  session,
+		Template: tpl,
+		writer:   writer,
 	}
 
 	return page, nil
 }
 
-// MustNewPage calls NewPage and panics on error.
-func MustNewPage(ctx context.Context, tpl *Template) *Page {
-	page, err := NewPage(ctx, tpl)
+// MustNewPage calls NewPage. It panics on error.
+func MustNewPage(writer http.ResponseWriter, request *http.Request, tpl *Template) *Page {
+	page, err := NewPage(writer, request, tpl)
 	if err != nil {
 		panic("pages.MustNewPage: " + err.Error())
 	}
@@ -123,7 +119,7 @@ func (p *Page) AddBreadcrumb(title string, url *url.URL) *Breadcrumb {
 
 // Redirect redirects the client.
 func (p *Page) Redirect(url string, code int) {
-	http.Redirect(p.responseWriter, p.request, url, code)
+	http.Redirect(p.writer, p.request, url, code)
 }
 
 // RequireSignIn redirects users to the sign-in page specified by SignInUrl.
@@ -159,7 +155,7 @@ func (p *Page) Error(err error) {
 
 	if TemplateError == nil {
 		log.Println("pages.Page.Error: No error template provided.")
-		http.Error(p.responseWriter, "Internal Server Error", http.StatusInternalServerError)
+		http.Error(p.writer, "Internal Server Error", http.StatusInternalServerError)
 		return
 	}
 
@@ -173,22 +169,22 @@ func (p *Page) Error(err error) {
 	if ReloadTemplates {
 		if err := p.Template.Reload(); err != nil {
 			log.Printf("pages.Page.Error: Reloading template failed: %s\n", p.Template.paths)
-			http.Error(p.responseWriter, "Internal Server Error", http.StatusInternalServerError)
+			http.Error(p.writer, "Internal Server Error", http.StatusInternalServerError)
 		}
 	}
 
 	templateName := path.Base(TemplateError.paths[0])
 	if err := TemplateError.template.ExecuteTemplate(buffer, templateName, p); err != nil {
 		log.Printf("pages.Page.Error: Executing template failed: %s\n", err)
-		http.Error(p.responseWriter, "Internal Server Error", http.StatusInternalServerError)
+		http.Error(p.writer, "Internal Server Error", http.StatusInternalServerError)
 		return
 	}
 
 	b := html.RemoveWhitespace(buffer.Bytes())
 
-	if _, err := bytes.NewBuffer(b).WriteTo(p.responseWriter); err != nil {
+	if _, err := bytes.NewBuffer(b).WriteTo(p.writer); err != nil {
 		log.Printf("pages.Page.Error: Writing template to buffer failed: %s\n", err)
-		http.Error(p.responseWriter, "Internal Server Error", http.StatusInternalServerError)
+		http.Error(p.writer, "Internal Server Error", http.StatusInternalServerError)
 	}
 }
 
@@ -222,7 +218,7 @@ func (p *Page) Serve() {
 
 	b := html.RemoveWhitespace(buffer.Bytes())
 
-	if _, err := bytes.NewBuffer(b).WriteTo(p.responseWriter); err != nil {
+	if _, err := bytes.NewBuffer(b).WriteTo(p.writer); err != nil {
 		p.Error(err)
 	}
 }
@@ -237,11 +233,11 @@ func (p *Page) ServeEmpty() {
 // exist.
 func (p *Page) ServeNotFound() {
 	if TemplateNotFound == nil {
-		http.Error(p.responseWriter, p.T("err_404_not_found"), http.StatusNotFound)
+		http.Error(p.writer, p.T("err_404_not_found"), http.StatusNotFound)
 		return
 	}
 
-	p.responseWriter.WriteHeader(http.StatusNotFound)
+	p.writer.WriteHeader(http.StatusNotFound)
 	p.Template = TemplateNotFound
 	p.Title = p.T("err_404_not_found")
 	p.Serve()
@@ -250,8 +246,8 @@ func (p *Page) ServeNotFound() {
 // ServeUnauthorized serves a page that tells the user the requested page cannot
 // be accessed due to insufficient access rights.
 func (p *Page) ServeUnauthorized() {
-	p.Session.AddFlashError(p.T("err_unauthorized_access"))
-	p.responseWriter.WriteHeader(http.StatusUnauthorized)
+	p.Session.AddFlash(p.T("err_unauthorized_access"), sessions.FlashTypeError)
+	p.writer.WriteHeader(http.StatusUnauthorized)
 	p.ServeEmpty()
 }
 
@@ -262,7 +258,7 @@ func (p *Page) ServeUnauthorized() {
 // preserved.
 func (p *Page) ServeWithError(err error) {
 	log.Println(err.Error())
-	p.Session.AddFlashError(p.T("err_505_internal_server_error"))
+	p.Session.AddFlash(p.T("err_505_internal_server_error"), sessions.FlashTypeError)
 	p.Serve()
 }
 
@@ -275,7 +271,7 @@ func (p *Page) T(translationId string, templateData ...map[string]interface{}) s
 	return p.Language.T(translationId, templateData...)
 }
 
-func Error(ctx context.Context, err error) {
-	page := MustNewPage(ctx, TemplateError)
+func Error(writer http.ResponseWriter, request *http.Request, err error) {
+	page := MustNewPage(writer, request, TemplateError)
 	page.Error(err)
 }

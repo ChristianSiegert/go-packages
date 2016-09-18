@@ -2,15 +2,12 @@
 package forms
 
 import (
-	"fmt"
 	"net/http"
 	"strconv"
 	"strings"
 
-	"github.com/ChristianSiegert/go-packages/chttp"
 	"github.com/ChristianSiegert/go-packages/html/elements"
 	"github.com/ChristianSiegert/go-packages/validation"
-	"golang.org/x/net/context"
 )
 
 type Form struct {
@@ -26,12 +23,7 @@ type Form struct {
 	ValidationMessages validation.Messages
 }
 
-func New(ctx context.Context) (*Form, error) {
-	_, request, ok := chttp.FromContext(ctx)
-	if !ok {
-		return nil, fmt.Errorf("forms.New: http.Request is not provided by ctx.")
-	}
-
+func New(request *http.Request) (*Form, error) {
 	return &Form{
 		request: request,
 	}, nil

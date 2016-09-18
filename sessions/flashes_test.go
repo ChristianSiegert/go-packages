@@ -5,7 +5,7 @@ import (
 	"testing"
 )
 
-func TestHtml(t *testing.T) {
+func TestFlash_HtmlUnsafe(t *testing.T) {
 	flash := &Flash{
 		Message: "<b>Foo</b>",
 	}
@@ -17,10 +17,10 @@ func TestHtml(t *testing.T) {
 	}
 }
 
-func TestString(t *testing.T) {
+func TestFlash_String(t *testing.T) {
 	flash := &Flash{
 		Message: "foo bar",
-		Type:    123,
+		Type:    "baz",
 	}
 
 	expected := flash.Message
