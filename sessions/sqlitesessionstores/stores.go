@@ -76,7 +76,7 @@ func (s *Store) Delete(writer http.ResponseWriter, sessionID string) error {
 // DeleteMulti deletes sessions from the store that match the criteria specified
 // in options.
 func (s *Store) DeleteMulti(options *sessions.StoreOptions) error {
-	return errors.New("method no implemented")
+	return errors.New("method not implemented")
 }
 
 // Get gets a session from the store using the session ID stored in the session
@@ -158,7 +158,7 @@ func (s *Store) Get(writer http.ResponseWriter, request *http.Request) (sessions
 // GetMulti gets sessions from the store that match the criteria specified in
 // options.
 func (s *Store) GetMulti(options *sessions.StoreOptions) ([]sessions.Session, error) {
-	return nil, errors.New("method no implemented")
+	return nil, errors.New("method not implemented")
 }
 
 // Save saves a session to the store and creates / updates the session cookie.
@@ -274,5 +274,5 @@ func createSchema(db *sql.DB, tableName string) error {
 
 // SaveMulti saves the provided sessions.
 func (s *Store) SaveMulti(sessions []sessions.Session) error {
-	return errors.New("method no implemented")
+	return errors.New("method not implemented")
 }
