@@ -1,24 +1,89 @@
 package sessions
 
-import "html/template"
+import "encoding/json"
 
-// Type to identify flash messages that show the user an error.
-const FlashTypeError = "error"
+// Flashes manages flashes.
+type Flashes interface {
+	// Add adds flashes.
+	Add(flashes ...Flash)
 
-// Flash consists of a message that should be displayed to the user, and a type
-// that can be used to style the message appropriately.
-type Flash struct {
-	Message string
-	Type    string
+	// AddNew creates a new Flash and adds it. flashType is optional. Only the
+	// first given flashType is used.
+	AddNew(message string, flashType ...string) Flash
+
+	// GetAll returns all flashes.
+	GetAll() []Flash
+
+	// Remove removes flashes.
+	Remove(flashes ...Flash)
+
+	// RemoveAll removes all flashes.
+	RemoveAll()
 }
 
-// HtmlUnsafe returns f.Message without escaping it. Useful if f.Message
-// contains HTML code that should be rendered by the browser.
-func (f *Flash) HtmlUnsafe() template.HTML {
-	return template.HTML(f.Message)
+type flashes []Flash
+
+// NewFlashes returns a new instance of Flashes.
+func NewFlashes() Flashes {
+	return &flashes{}
 }
 
-// String returns f.Message.
-func (f *Flash) String() string {
-	return f.Message
+// Add adds flashes.
+func (f *flashes) Add(flashes ...Flash) {
+	for _, flash := range flashes {
+		*f = append(*f, flash)
+	}
+}
+
+// AddNew creates a new Flash and adds it. flashType is optional. Only the
+// first given flashType is used.
+func (f *flashes) AddNew(message string, flashType ...string) Flash {
+	flash := NewFlash(message, "")
+
+	if len(flashType) > 0 {
+		flash.SetType(flashType[0])
+	}
+
+	f.Add(flash)
+	return flash
+}
+
+// GetAll returns all flashes.
+func (f *flashes) GetAll() []Flash {
+	return []Flash(*f)
+}
+
+// Remove removes flashes.
+func (f *flashes) Remove(flashes ...Flash) {
+	ff := f.GetAll()
+	for _, flash := range flashes {
+		for i := 0; i < len(ff); i++ {
+			if ff[i] == flash {
+				ff = append(ff[:i], ff[i+1:]...)
+			}
+		}
+	}
+	*f = ff
+}
+
+// RemoveAll removes all flashes.
+func (f *flashes) RemoveAll() {
+	*f = flashes{}
+}
+
+// FlashesFromJSON JSON decodes an array of Flash objects. The result is useful
+// as input for Flashes.Add.
+func FlashesFromJSON(data []byte) ([]Flash, error) {
+	temp := []encodableFlash{}
+
+	if err := json.Unmarshal(data, &temp); err != nil {
+		return nil, err
+	}
+
+	ff := make([]Flash, 0, len(temp))
+	for _, f := range temp {
+		flash := NewFlash(f.Message, f.Type)
+		ff = append(ff, flash)
+	}
+	return ff, nil
 }

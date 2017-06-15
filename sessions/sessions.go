@@ -1,4 +1,4 @@
-// Package sessions provides session handling.
+// Package sessions provides HTTP(S) sessions.
 package sessions
 
 import (
@@ -6,70 +6,92 @@ import (
 	"time"
 )
 
-type Session struct {
-	DateCreated time.Time
-	Flashes     []Flash
-	id          string
-	isStored    bool
-	store       Store
-	UserId      string
-	Values      map[interface{}]interface{}
+const keyFlashes = "_flashes"
+
+// Session represents an HTTP(S) session.
+type Session interface {
+	// DateCreated returns the session’s creation date.
+	DateCreated() time.Time
+
+	// Delete deletes the session from the session store.
+	Delete(http.ResponseWriter) error
+
+	// Flashes returns the session’s flash container.
+	Flashes() Flashes
+
+	// ID returns the session’s ID.
+	ID() string
+
+	// Save saves the session to the session store.
+	Save(http.ResponseWriter) error
+
+	// SetDateCreated sets the session’s creation date.
+	SetDateCreated(time.Time)
+
+	// Store returns the session store.
+	Store() Store
+
+	// Values returns the session’s value container.
+	Values() Values
 }
 
-// New returns a new session.
-func New(store Store, id string) *Session {
-	return &Session{
-		DateCreated: time.Now(),
+// session is an unexported type that implements the Session interface.
+type session struct {
+	dateCreated time.Time
+	flashes     Flashes
+	id          string
+	store       Store
+	values      Values
+}
+
+// NewSession returns a new session. The session has not been saved to the
+// session store yet. To do that, call Save.
+func NewSession(store Store, id string) Session {
+	return &session{
+		dateCreated: time.Now(),
+		flashes:     NewFlashes(),
 		id:          id,
 		store:       store,
-		Values:      make(map[interface{}]interface{}),
+		values:      NewValues(),
 	}
 }
 
-// AddFlash adds a flash message to the session.
-func (s *Session) AddFlash(message string, flashType ...string) {
-	flash := Flash{
-		Message: message,
-	}
-
-	if len(flashType) > 0 {
-		flash.Type = flashType[0]
-	}
-
-	s.Flashes = append(s.Flashes, flash)
+// DateCreated returns the session’s creation date.
+func (s *session) DateCreated() time.Time {
+	return s.dateCreated
 }
 
 // Delete deletes the session from the session store.
-func (s *Session) Delete(writer http.ResponseWriter) error {
-	return s.store.Delete(writer, s)
+func (s *session) Delete(writer http.ResponseWriter) error {
+	return s.store.Delete(writer, s.ID())
 }
 
-// FlashAll returns all flashes and removes them from the session.
-func (s *Session) FlashAll() []Flash {
-	if len(s.Flashes) == 0 {
-		return s.Flashes
-	}
-
-	flashes := s.Flashes
-	s.Flashes = []Flash{}
-	return flashes
+// Flashes returns the session’s flash container.
+func (s session) Flashes() Flashes {
+	return s.flashes
 }
 
-// Id returns the session id.
-func (s *Session) Id() string {
+// ID returns the session’s id.
+func (s *session) ID() string {
 	return s.id
 }
 
-// RemoveFlash removes a flash message from the session.
-func (s *Session) RemoveFlash(flash Flash) {
-	for i := range s.Flashes {
-		if s.Flashes[i] == flash {
-			s.Flashes = append(s.Flashes[:i], s.Flashes[i+1:]...)
-		}
-	}
+// Save saves the session to the session store.
+func (s *session) Save(writer http.ResponseWriter) error {
+	return s.store.Save(writer, s)
 }
 
-// Save saves the session to the session store.
-func (s *Session) Save(writer http.ResponseWriter) error {
-	return s.store.Save(writer, s)
+// SetDateCreated sets the session’s creation date.
+func (s *session) SetDateCreated(date time.Time) {
+	s.dateCreated = date
+}
+
+// Store returns the session store.
+func (s session) Store() Store {
+	return s.store
+}
+
+// Values returns the session’s value container.
+func (s session) Values() Values {
+	return s.values
 }

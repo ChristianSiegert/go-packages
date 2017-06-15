@@ -9,16 +9,16 @@ type contextKey int
 const key contextKey = 0
 
 // NewContext returns a new context that carries session.
-func NewContext(ctx context.Context, session *Session) context.Context {
+func NewContext(ctx context.Context, session Session) context.Context {
 	return context.WithValue(ctx, key, session)
 }
 
 // FromContext extracts the session from ctx. If no session is carried by ctx,
 // the second return argument is false.
-func FromContext(ctx context.Context) (*Session, bool) {
+func FromContext(ctx context.Context) (Session, bool) {
 	if ctx == nil {
 		return nil, false
 	}
-	session, ok := ctx.Value(key).(*Session)
+	session, ok := ctx.Value(key).(Session)
 	return session, ok
 }
