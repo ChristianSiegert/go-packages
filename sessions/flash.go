@@ -35,7 +35,7 @@ type flash struct {
 	message   string
 }
 
-// encodableFlash is used for JSON encoding and decoding Flash objects.
+// encodableFlash is used for JSON encoding Flash objects.
 type encodableFlash struct {
 	Message string `json:"message,omitempty"`
 	Type    string `json:"type,omitempty"`
