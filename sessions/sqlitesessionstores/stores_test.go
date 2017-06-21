@@ -138,7 +138,9 @@ func TestMulti(t *testing.T) {
 	defer tearDown(db)
 
 	sessionA := sessions.NewSession(store, "a")
+	sessionA.Flashes().AddNew("lorem", "ipsum")
 	sessionA.SetDateCreated(time.Date(2090, 11, 10, 9, 8, 7, 6, &time.Location{}))
+	sessionA.Values().Set(KeyUserID, "user-a")
 
 	ss := []sessions.Session{
 		sessionA,
@@ -159,5 +161,10 @@ func TestMulti(t *testing.T) {
 
 	if err := store.DeleteMulti(nil); err != nil {
 		t.Errorf("DeleteMulti failed: %s", err)
+	}
+	if ss3, err := store.GetMulti(nil); err != nil {
+		t.Errorf("Getting sessions failed: %s", err)
+	} else if len(ss3) != 0 {
+		t.Errorf("Expected 0 sessions, got %d.", len(ss3))
 	}
 }
