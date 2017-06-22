@@ -104,19 +104,6 @@ func (s *Store) Get(writer http.ResponseWriter, request *http.Request) (sessions
 
 	session := sessions.NewSession(s, cookie.Value)
 
-	query := `
-		SELECT
-			data,
-			dateCreated,
-			flashes,
-			userId
-		FROM
-			%s
-		WHERE
-			id = ?
-		LIMIT 1
-	`
-
 	temp := struct {
 		dateCreated    time.Time
 		encodedFlashes []byte
@@ -126,7 +113,7 @@ func (s *Store) Get(writer http.ResponseWriter, request *http.Request) (sessions
 		values         map[string]string
 	}{}
 
-	query = fmt.Sprintf(query, s.tableName)
+	query := fmt.Sprintf(queryGet, s.tableName)
 	row := s.db.QueryRow(query, session.ID())
 
 	err = row.Scan(
