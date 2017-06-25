@@ -8,7 +8,7 @@ import (
 // User represents a user.
 type User interface {
 	EmailAddress() string
-	Id() string
+	ID() string
 	Name() string
 	PasswordHash() []byte
 	Role() roles.Role
