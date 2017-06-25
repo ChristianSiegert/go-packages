@@ -95,7 +95,7 @@ func (w *WebApp) handleSession(handle httprouter.Handle) httprouter.Handle {
 
 // Start starts the HTTP server.
 func (w *WebApp) Start() error {
-	serverAddress := w.serverHost + w.serverPort
+	serverAddress := w.serverHost + ":" + w.serverPort
 	return http.ListenAndServe(serverAddress, w.router)
 }
 
