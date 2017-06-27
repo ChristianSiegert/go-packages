@@ -9,6 +9,7 @@ import (
 	"github.com/julienschmidt/httprouter"
 )
 
+// WebApp represents a web application or web site.
 type WebApp struct {
 	// Default language to redirect to when requested language is not supported.
 	defaultLanguageCode string
@@ -21,6 +22,7 @@ type WebApp struct {
 	sessionStore sessions.Store
 }
 
+// New returns a new WebApp.
 func New(host, port string, logger *log.Logger, sessionStore sessions.Store) *WebApp {
 	return &WebApp{
 		languages:    make(map[string]*languages.Language, 1),
@@ -32,6 +34,7 @@ func New(host, port string, logger *log.Logger, sessionStore sessions.Store) *We
 	}
 }
 
+// AddLanguage adds a language to w.
 func (w *WebApp) AddLanguage(language *languages.Language, isDefault bool) {
 	w.languages[language.Code()] = language
 	if isDefault {
@@ -39,6 +42,7 @@ func (w *WebApp) AddLanguage(language *languages.Language, isDefault bool) {
 	}
 }
 
+// AddRoute adds a route to w.
 func (w *WebApp) AddRoute(path string, handle httprouter.Handle, methods ...string) {
 	for _, method := range methods {
 		handle = w.handleLanguage(handle)
@@ -47,6 +51,8 @@ func (w *WebApp) AddRoute(path string, handle httprouter.Handle, methods ...stri
 	}
 }
 
+// AddFileDir makes files stored in dirPath accessible at urlPath. urlPath must
+// end with “/*filepath”.
 func (w *WebApp) AddFileDir(urlPath, dirPath string) {
 	w.router.ServeFiles(urlPath, http.Dir(dirPath))
 }
@@ -99,8 +105,8 @@ func (w *WebApp) Start() error {
 	return http.ListenAndServe(serverAddress, w.router)
 }
 
-// StartWithTls starts the HTTP server with TLS.
-func (w *WebApp) StartWithTls(certificatePath, keyPath string) error {
+// StartWithTLS starts the HTTP server with TLS (Transport Layer Security).
+func (w *WebApp) StartWithTLS(certificatePath, keyPath string) error {
 	serverAddress := w.serverHost + w.serverPort
 	return http.ListenAndServeTLS(serverAddress, certificatePath, keyPath, w.router)
 }
