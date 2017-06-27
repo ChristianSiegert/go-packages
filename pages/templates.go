@@ -25,7 +25,7 @@ func (t *Template) Reload() error {
 // must be provided by funcMap.
 func NewTemplate(funcMap template.FuncMap, paths ...string) (*Template, error) {
 	if len(paths) == 0 {
-		return nil, errors.New("pages.NewTemplate: No template path provided.")
+		return nil, errors.New("pages.NewTemplate: no template path provided")
 	}
 
 	tpl, err := load(funcMap, paths...)

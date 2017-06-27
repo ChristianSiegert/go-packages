@@ -17,18 +17,21 @@ import (
 	"github.com/ChristianSiegert/go-packages/sessions"
 )
 
-// Whether NewPage and MustNewPage should reload templates on every request.
-// Reloading templates is useful to see changes without recompiling. In
-// production, reloading should be disabled.
+// FlashTypeError is the flash type used for error messages.
+var FlashTypeError = "error"
+
+// ReloadTemplates is a flag for whether NewPage and MustNewPage should reload
+// templates on every request. Reloading templates is useful to see changes
+// without recompiling. In production, reloading should be disabled.
 var ReloadTemplates = false
 
-// Template that is used when Page.ServeEmpty is called.
+// TemplateEmpty is used when Page.ServeEmpty is called.
 var TemplateEmpty *Template
 
-// Template that is used when Page.Error is called.
+// TemplateError is used when Page.Error is called.
 var TemplateError *Template
 
-// Template that is used when Page.ServeNotFound is called.
+// TemplateNotFound is used when Page.ServeNotFound is called.
 var TemplateNotFound *Template
 
 // SignInUrl is the URL to the page that users are redirected to when
@@ -56,7 +59,7 @@ type Page struct {
 
 	request *http.Request
 
-	Session *sessions.Session
+	Session sessions.Session
 
 	Template *Template
 
@@ -67,17 +70,18 @@ type Page struct {
 	writer http.ResponseWriter
 }
 
+// NewPage returns a new page.
 func NewPage(writer http.ResponseWriter, request *http.Request, tpl *Template) (*Page, error) {
 	ctx := request.Context()
 
 	language, ok := languages.FromContext(ctx)
 	if !ok {
-		return nil, errors.New("pages.NewPage: languages.Language is not provided by context.")
+		return nil, errors.New("pages.NewPage: languages.Language is not provided by context")
 	}
 
 	session, ok := sessions.FromContext(ctx)
 	if !ok {
-		return nil, errors.New("pages.NewPage: sessions.Session is not provided by context.")
+		return nil, errors.New("pages.NewPage: sessions.Session is not provided by context")
 	}
 
 	form, err := forms.New(request)
@@ -107,6 +111,7 @@ func MustNewPage(writer http.ResponseWriter, request *http.Request, tpl *Templat
 	return page
 }
 
+// AddBreadcrumb adds a breadcrumb.
 func (p *Page) AddBreadcrumb(title string, url *url.URL) *Breadcrumb {
 	breadcrumb := &Breadcrumb{
 		Title: title,
@@ -200,7 +205,7 @@ func (p *Page) Serve() {
 
 	// If still nil
 	if p.Template == nil {
-		p.Error(errors.New("pages.Page.Serve: No template provided."))
+		p.Error(errors.New("pages.Page.Serve: no template provided"))
 		return
 	}
 
@@ -246,7 +251,7 @@ func (p *Page) ServeNotFound() {
 // ServeUnauthorized serves a page that tells the user the requested page cannot
 // be accessed due to insufficient access rights.
 func (p *Page) ServeUnauthorized() {
-	p.Session.AddFlash(p.T("err_unauthorized_access"), sessions.FlashTypeError)
+	p.Session.Flashes().AddNew(p.T("err_unauthorized_access"), FlashTypeError)
 	p.writer.WriteHeader(http.StatusUnauthorized)
 	p.ServeEmpty()
 }
@@ -258,19 +263,20 @@ func (p *Page) ServeUnauthorized() {
 // preserved.
 func (p *Page) ServeWithError(err error) {
 	log.Println(err.Error())
-	p.Session.AddFlash(p.T("err_505_internal_server_error"), sessions.FlashTypeError)
+	p.Session.Flashes().AddNew(p.T("err_505_internal_server_error"), FlashTypeError)
 	p.Serve()
 }
 
-// T returns the translation associated with translationId. If p.Language
-// is nil, translationId is returned.
-func (p *Page) T(translationId string, templateData ...map[string]interface{}) string {
+// T returns the translation associated with translationID. If p.Language
+// is nil, translationID is returned.
+func (p *Page) T(translationID string, templateData ...map[string]interface{}) string {
 	if p.Language == nil {
-		return translationId
+		return translationID
 	}
-	return p.Language.T(translationId, templateData...)
+	return p.Language.T(translationID, templateData...)
 }
 
+// Error serves a new page using the TemplateError template.
 func Error(writer http.ResponseWriter, request *http.Request, err error) {
 	page := MustNewPage(writer, request, TemplateError)
 	page.Error(err)
