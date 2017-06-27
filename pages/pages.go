@@ -34,17 +34,18 @@ var TemplateError *Template
 // TemplateNotFound is used when Page.ServeNotFound is called.
 var TemplateNotFound *Template
 
-// SignInUrl is the URL to the page that users are redirected to when
+// SignInURL is the URL to the page that users are redirected to when
 // Page.RequireSignIn is called. If a %s placeholder is present in
-// SignInUrl.Path, it is replaced by the page’s language code. E.g.
+// SignInURL.Path, it is replaced by the page’s language code. E.g.
 // “/%s/sign-in” becomes “/en/sign-in” if the page’s language code is “en”.
-var SignInUrl = &url.URL{
+var SignInURL = &url.URL{
 	Path: "/%s/sign-in",
 }
 
 // Page represents a web page.
 type Page struct {
-	Breadcrumbs []*Breadcrumb
+	// Breadcrumbs manages navigation breadcrumbs.
+	Breadcrumbs *Breadcrumbs
 
 	Data map[string]interface{}
 
@@ -111,39 +112,28 @@ func MustNewPage(writer http.ResponseWriter, request *http.Request, tpl *Templat
 	return page
 }
 
-// AddBreadcrumb adds a breadcrumb.
-func (p *Page) AddBreadcrumb(title string, url *url.URL) *Breadcrumb {
-	breadcrumb := &Breadcrumb{
-		Title: title,
-		Url:   url,
-	}
-
-	p.Breadcrumbs = append(p.Breadcrumbs, breadcrumb)
-	return breadcrumb
-}
-
 // Redirect redirects the client.
 func (p *Page) Redirect(url string, code int) {
 	http.Redirect(p.writer, p.request, url, code)
 }
 
-// RequireSignIn redirects users to the sign-in page specified by SignInUrl.
-// If SignInUrl.RawQuery is empty, the query parameters “r” (referrer) and “t”
+// RequireSignIn redirects users to the sign-in page specified by SignInURL.
+// If SignInURL.RawQuery is empty, the query parameters “r” (referrer) and “t”
 // (title of the referrer page) are appended. This allows the sign-in page to
 // display a message that page <title> is access restricted, and after
 // successful authentication, users can be redirected to <referrer>, the page
 // they came from.
 func (p *Page) RequireSignIn(pageTitle string) {
 	u := &url.URL{
-		Scheme:   SignInUrl.Scheme,
-		Opaque:   SignInUrl.Opaque,
-		User:     SignInUrl.User,
-		Host:     SignInUrl.Host,
-		Path:     fmt.Sprintf(SignInUrl.Path, p.Language.Code()),
-		Fragment: SignInUrl.Fragment,
+		Scheme:   SignInURL.Scheme,
+		Opaque:   SignInURL.Opaque,
+		User:     SignInURL.User,
+		Host:     SignInURL.Host,
+		Path:     fmt.Sprintf(SignInURL.Path, p.Language.Code()),
+		Fragment: SignInURL.Fragment,
 	}
 
-	if SignInUrl.RawQuery == "" {
+	if SignInURL.RawQuery == "" {
 		query := &url.Values{}
 		query.Add("r", p.request.URL.Path)
 		query.Add("t", base64.URLEncoding.EncodeToString([]byte(pageTitle))) // TODO: Sign or encrypt parameter to prevent tempering by users
