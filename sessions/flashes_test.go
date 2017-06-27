@@ -33,9 +33,12 @@ func TestFlashes_AddNew(t *testing.T) {
 
 func TestFlashes_Remove(t *testing.T) {
 	flashes := NewFlashes()
-	flashes.Add(flashA, flashB)
-	flashes.Remove(flashA)
-	expected := []Flash{flashB}
+	flashA := flashes.AddNew("a")
+	flashB := flashes.AddNew("b")
+	flashC := flashes.AddNew("c")
+	flashD := flashes.AddNew("d")
+	flashes.Remove(flashA, flashC)
+	expected := []Flash{flashB, flashD}
 
 	if result := flashes.GetAll(); !reflect.DeepEqual(expected, result) {
 		t.Errorf("Expected %v, got %v", expected, result)
