@@ -30,9 +30,7 @@ func NewFlashes() Flashes {
 
 // Add adds flashes.
 func (f *flashes) Add(flashes ...Flash) {
-	for _, flash := range flashes {
-		*f = append(*f, flash)
-	}
+	*f = append(*f, flashes...)
 }
 
 // AddNew creates a new Flash and adds it. flashType is optional. Only the
@@ -60,6 +58,7 @@ func (f *flashes) Remove(flashes ...Flash) {
 		for i := 0; i < len(ff); i++ {
 			if ff[i] == flash {
 				ff = append(ff[:i], ff[i+1:]...)
+				break
 			}
 		}
 	}
