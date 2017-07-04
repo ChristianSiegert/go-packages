@@ -2,9 +2,12 @@
 package roles
 
 import "github.com/ChristianSiegert/go-packages/users/permissions"
+import "encoding/json"
 
 // Role of a user.
 type Role interface {
+	ID() int
+
 	// Name returns the role’s name.
 	Name() string
 
@@ -17,17 +20,39 @@ type Role interface {
 
 // role is an unexported implementation of the Role interface.
 type role struct {
+	id          int
 	name        string
 	permissions permissions.Map
 }
 
+// jsonRole is an unexported type that is used to JSON encode and decode a role.
+type jsonRole struct {
+	ID          int             `json:"id"`
+	Name        string          `json:"name"`
+	Permissions permissions.Map `json:"permissions"`
+}
+
 // New returns a new instance of an unexported type that implements the
 // Role interface.
-func New(name string, permissions permissions.Map) Role {
+func New(id int, name string, permissions permissions.Map) Role {
 	return &role{
+		id:          id,
 		name:        name,
 		permissions: permissions,
 	}
+}
+
+// ID returns the role’s ID.
+func (r *role) ID() int {
+	return r.id
+}
+
+func (r *role) MarshalJSON() ([]byte, error) {
+	return json.Marshal(&jsonRole{
+		ID:          r.ID(),
+		Name:        r.Name(),
+		Permissions: r.Permissions(),
+	})
 }
 
 // Name returns the role’s name.

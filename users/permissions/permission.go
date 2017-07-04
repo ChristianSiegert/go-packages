@@ -1,8 +1,15 @@
 package permissions
 
-// Permission that can be added to a role.
+import (
+	"encoding"
+)
+
+// Permission is an action that a user is allowed to perform.
 type Permission interface {
+	// Name returns the permission’s name.
 	Name() string
+
+	encoding.TextMarshaler
 }
 
 type permission string
@@ -12,6 +19,10 @@ type permission string
 // create a type whenever the Permission interface must be satisfied.
 func NewPermission(name string) Permission {
 	return permission(name)
+}
+
+func (p permission) MarshalText() ([]byte, error) {
+	return []byte(p.Name()), nil
 }
 
 func (p permission) Name() string {
