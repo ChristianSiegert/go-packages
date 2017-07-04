@@ -9,6 +9,9 @@ import (
 	"github.com/julienschmidt/httprouter"
 )
 
+// ParamLanguage is the route parameter that stores the language code.
+const ParamLanguage = "lang"
+
 // WebApp represents a web application or web site.
 type WebApp struct {
 	// Default language to redirect to when requested language is not supported.
@@ -58,8 +61,12 @@ func (w *WebApp) AddFileDir(urlPath, dirPath string) {
 }
 
 func (w *WebApp) handleLanguage(handle httprouter.Handle) httprouter.Handle {
+	if len(w.languages) == 0 {
+		return handle
+	}
+
 	return func(writer http.ResponseWriter, request *http.Request, params httprouter.Params) {
-		languageCode := params.ByName("lang")
+		languageCode := params.ByName(ParamLanguage)
 
 		// If language is not supported, redirect to default language
 		language, ok := w.languages[languageCode]
@@ -81,6 +88,10 @@ func (w *WebApp) handleLanguage(handle httprouter.Handle) httprouter.Handle {
 }
 
 func (w *WebApp) handleSession(handle httprouter.Handle) httprouter.Handle {
+	if w.sessionStore == nil {
+		return handle
+	}
+
 	return func(writer http.ResponseWriter, request *http.Request, params httprouter.Params) {
 		// Get session for this request
 		session, err := w.sessionStore.Get(writer, request)
