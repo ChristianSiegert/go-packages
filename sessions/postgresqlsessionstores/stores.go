@@ -128,8 +128,8 @@ func (s *Store) Get(writer http.ResponseWriter, request *http.Request) (sessions
 		return nil, err
 	}
 
-	// Date
 	session.SetDateCreated(temp.dateCreated)
+	session.SetIsStored(true)
 
 	// Decode flashes
 	flashes, err := sessions.FlashesFromJSON(temp.encodedFlashes)
@@ -178,7 +178,13 @@ func (s *Store) Save(writer http.ResponseWriter, session sessions.Session) error
 		session.ID(),
 		session.Values().Get(KeyUserID),
 	)
-	return err
+
+	if err != nil {
+		return err
+	}
+
+	session.SetIsStored(true)
+	return nil
 }
 
 // SaveMulti saves the provided sessions.

@@ -20,11 +20,18 @@ type Session interface {
 	// ID returns the session’s ID.
 	ID() string
 
+	// IsStored returns true if the session exists in the store.
+	IsStored() bool
+
 	// Save saves the session to the session store.
 	Save(http.ResponseWriter) error
 
 	// SetDateCreated sets the session’s creation date.
 	SetDateCreated(time.Time)
+
+	// SetIsStored sets whether the session exists in the store. Only the store
+	// should call this method.
+	SetIsStored(bool)
 
 	// Store returns the session store.
 	Store() Store
@@ -38,6 +45,7 @@ type session struct {
 	dateCreated time.Time
 	flashes     Flashes
 	id          string
+	isStored    bool
 	store       Store
 	values      Values
 }
@@ -61,7 +69,11 @@ func (s *session) DateCreated() time.Time {
 
 // Delete deletes the session from the session store.
 func (s *session) Delete(writer http.ResponseWriter) error {
-	return s.store.Delete(writer, s.ID())
+	if err := s.store.Delete(writer, s.ID()); err != nil {
+		return err
+	}
+	s.SetIsStored(false)
+	return nil
 }
 
 // Flashes returns the session’s flash container.
@@ -74,6 +86,11 @@ func (s *session) ID() string {
 	return s.id
 }
 
+// IsStored returns true if the session exists in the store.
+func (s *session) IsStored() bool {
+	return s.isStored
+}
+
 // Save saves the session to the session store.
 func (s *session) Save(writer http.ResponseWriter) error {
 	return s.store.Save(writer, s)
@@ -82,6 +99,11 @@ func (s *session) Save(writer http.ResponseWriter) error {
 // SetDateCreated sets the session’s creation date.
 func (s *session) SetDateCreated(date time.Time) {
 	s.dateCreated = date
+}
+
+// SetIsStored sets whether the session exists in the store.
+func (s *session) SetIsStored(isStored bool) {
+	s.isStored = isStored
 }
 
 // Store returns the session store.

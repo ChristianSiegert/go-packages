@@ -97,6 +97,8 @@ func testSave(writer http.ResponseWriter, request *http.Request, t *testing.T, s
 		t.Errorf("Saving session failed: %s", err)
 	} else if writer.Header().Get("Set-Cookie") == "" {
 		t.Errorf("Expected header Set-Cookie to be set.")
+	} else if !session.IsStored() {
+		t.Errorf("Expected session.IsStored() to be true, is false.")
 	}
 }
 
@@ -115,6 +117,8 @@ func testGet(writer http.ResponseWriter, request *http.Request, t *testing.T, st
 		t.Errorf("Expected Flashes %#v, got %#v", expectedSession.Flashes(), session.Flashes())
 	} else if session.ID() != expectedSession.ID() {
 		t.Errorf("Expected ID %q, got %q.", expectedSession.ID(), session.ID())
+	} else if !session.IsStored() {
+		t.Errorf("Expected session.IsStored() to be true, is false.")
 	} else if !reflect.DeepEqual(session.Values(), expectedSession.Values()) {
 		t.Errorf("Expected Values %#v, got %#v", expectedSession.Values(), session.Values())
 	}
