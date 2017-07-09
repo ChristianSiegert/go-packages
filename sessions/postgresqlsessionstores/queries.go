@@ -39,9 +39,13 @@ const queryGet = `
 
 // SQL query for saving sessions. %s is replaced by the table name.
 const querySave = `
-	INSERT OR REPLACE INTO %s (
+	INSERT INTO %s (
 		data, date_created, flashes, id, user_id
 	) VALUES (
 		$1, $2, $3, $4, $5
-	);
+	) ON CONFLICT (id) DO UPDATE SET
+		data = $1,
+		date_created = $2,
+		flashes = $3,
+		user_id = $5
 `
