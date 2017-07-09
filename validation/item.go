@@ -20,34 +20,34 @@ const (
 // Regular expression for validating an e-mail address.
 var eMailAddressRegExp = regexp.MustCompile("^[^@]+@[^@]+$")
 
-// A field can have zero or more validation rules that are used to validate the
-// field’s value.
-type Field struct {
+// Item can have zero or more validation rules that are used to validate the
+// item’s value.
+type Item struct {
 	Rules []*Rule
 	value interface{}
 }
 
-// EmailAddress checks if the field’s value is an e-mail address. It only
-// checks the length and whether there is exactly one at-sign preceded and
-// followed by at least one character.
-func (f *Field) EmailAddress(errorMessage string) *Field {
-	f.Rules = append(f.Rules, &Rule{
+// EmailAddress checks if the item’s value is an e-mail address. It only checks
+// the length and whether there is exactly one “at” sign preceded and followed
+// by at least one character.
+func (i *Item) EmailAddress(errorMessage string) *Item {
+	i.Rules = append(i.Rules, &Rule{
 		Func: func(value interface{}) (bool, error) {
 			switch value := value.(type) {
 			case string:
 				return utf8.RuneCountInString(value) <= 254 && eMailAddressRegExp.MatchString(value), nil
 			}
-			return false, fmt.Errorf("validation.Field.EmailAddress: unsupported value type %T", value)
+			return false, fmt.Errorf("validation.Item.EmailAddress: unsupported value type %T", value)
 		},
 		Message: errorMessage,
 		Type:    RuleTypeEmailAddress,
 	})
-	return f
+	return i
 }
 
-// Equals checks if the field’s value equals value2.
-func (f *Field) Equals(value2 interface{}, message string) *Field {
-	f.Rules = append(f.Rules, &Rule{
+// Equals checks if the item’s value equals value2.
+func (i *Item) Equals(value2 interface{}, message string) *Item {
+	i.Rules = append(i.Rules, &Rule{
 		Func: func(value interface{}) (bool, error) {
 			switch value := value.(type) {
 			case int:
@@ -58,24 +58,24 @@ func (f *Field) Equals(value2 interface{}, message string) *Field {
 				}
 				return true, nil
 			}
-			return false, fmt.Errorf("validation.Field.Equals: unsupported value type %T", value)
+			return false, fmt.Errorf("validation.Item.Equals: unsupported value type %T", value)
 		},
 		Message: message,
 	})
-	return f
+	return i
 }
 
-func (f *Field) Func(fn func(value interface{}) (bool, error), message string) *Field {
-	f.Rules = append(f.Rules, &Rule{
+func (i *Item) Func(fn func(value interface{}) (bool, error), message string) *Item {
+	i.Rules = append(i.Rules, &Rule{
 		Func:    fn,
 		Message: message,
 	})
-	return f
+	return i
 }
 
-// MaxLength checks if the field’s value has a maximum length of maxLength.
-func (f *Field) MaxLength(maxLength int, message string) *Field {
-	f.Rules = append(f.Rules, &Rule{
+// MaxLength checks if the item’s value has a maximum length of maxLength.
+func (i *Item) MaxLength(maxLength int, message string) *Item {
+	i.Rules = append(i.Rules, &Rule{
 		Func: func(value interface{}) (bool, error) {
 			switch value := value.(type) {
 			case string:
@@ -84,18 +84,18 @@ func (f *Field) MaxLength(maxLength int, message string) *Field {
 				}
 				return true, nil
 			}
-			return false, fmt.Errorf("validation.Field.MaxLength: unsupported value type %T", value)
+			return false, fmt.Errorf("validation.Item.MaxLength: unsupported value type %T", value)
 		},
 		Args:    []interface{}{maxLength},
 		Message: message,
 		Type:    RuleTypeMaxLength,
 	})
-	return f
+	return i
 }
 
-// MinLength checks if the field’s value has a minimum length of minLength.
-func (f *Field) MinLength(minLength int, message string) *Field {
-	f.Rules = append(f.Rules, &Rule{
+// MinLength checks if the item’s value has a minimum length of minLength.
+func (i *Item) MinLength(minLength int, message string) *Item {
+	i.Rules = append(i.Rules, &Rule{
 		Func: func(value interface{}) (bool, error) {
 			switch value := value.(type) {
 			case string:
@@ -104,18 +104,18 @@ func (f *Field) MinLength(minLength int, message string) *Field {
 				}
 				return true, nil
 			}
-			return false, fmt.Errorf("validation.Field.MinLength: unsupported value type %T", value)
+			return false, fmt.Errorf("validation.Item.MinLength: unsupported value type %T", value)
 		},
 		Args:    []interface{}{minLength},
 		Message: message,
 		Type:    RuleTypeMinLength,
 	})
-	return f
+	return i
 }
 
-// Required checks if the field’s value is non-zero.
-func (f *Field) Required(message string) *Field {
-	f.Rules = append(f.Rules, &Rule{
+// Required checks if the item’s value is non-zero.
+func (i *Item) Required(message string) *Item {
+	i.Rules = append(i.Rules, &Rule{
 		Func: func(value interface{}) (bool, error) {
 			switch value := value.(type) {
 			case int8:
@@ -125,23 +125,25 @@ func (f *Field) Required(message string) *Field {
 			case time.Time:
 				return !value.IsZero(), nil
 			}
-			return false, fmt.Errorf("validation.Field.Required: unsupported value type %T", value)
+			return false, fmt.Errorf("validation.Item.Required: unsupported value type %T", value)
 		},
 		Args:    []interface{}{RuleTypeRequired},
 		Message: message,
 		Type:    RuleTypeRequired,
 	})
-	return f
+	return i
 }
 
-// Validate checks if the field’s value is valid according to the specified
+// Validate checks if the item’s value is valid according to the specified
 // validation rules. If it is valid, the function returns true. If it is not
 // valid, the rule’s validation error message is returned. If an error
 // occurred, the error is returned. A returned error does not mean the value is
-// invalid, it solely means something went wrong.
-func (f *Field) Validate() (bool, string, error) {
-	for _, rule := range f.Rules {
-		if isValid, err := rule.Func(f.value); err != nil {
+// invalid, it solely means something went wrong. Rules are checked in order of
+// creation. If the item’s value was found to be invalid, any further rules are
+// not checked.
+func (i *Item) Validate() (bool, string, error) {
+	for _, rule := range i.Rules {
+		if isValid, err := rule.Func(i.value); err != nil {
 			return false, "", err
 		} else if !isValid {
 			return false, rule.Message, nil

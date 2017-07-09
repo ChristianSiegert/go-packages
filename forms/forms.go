@@ -14,9 +14,9 @@ type Form struct {
 	request *http.Request
 
 	// ValidationFields is a map of field names and their corresponding
-	// *validation.Field. Used to get information about the fields’ validation
+	// validation.Item. Used to get information about the items’ validation
 	// rules.
-	ValidationFields validation.Fields
+	ValidationFields validation.Items
 
 	// ValidationMessages contains a validation error message for each form
 	// field that has an invalid value.
