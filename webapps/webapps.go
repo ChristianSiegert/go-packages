@@ -96,7 +96,7 @@ func (w *WebApp) handleSession(handle httprouter.Handle) httprouter.Handle {
 		// Get session for this request
 		session, err := w.sessionStore.Get(writer, request)
 		if err != nil {
-			log.Println("webapps: " + err.Error())
+			log.Println("webapps: Getting session failed: " + err.Error())
 			http.Error(writer, "Interal Server Error", http.StatusInternalServerError)
 			return
 		}
