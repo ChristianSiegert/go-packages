@@ -6,8 +6,6 @@ import (
 	"time"
 )
 
-const keyFlashes = "_flashes"
-
 // Session represents an HTTP(S) session.
 type Session interface {
 	// DateCreated returns the session’s creation date.
