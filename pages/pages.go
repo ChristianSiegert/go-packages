@@ -91,13 +91,14 @@ func NewPage(writer http.ResponseWriter, request *http.Request, tpl *Template) (
 	}
 
 	page := &Page{
-		Data:     make(map[string]interface{}),
-		Form:     form,
-		Language: language,
-		request:  request,
-		Session:  session,
-		Template: tpl,
-		writer:   writer,
+		Breadcrumbs: &Breadcrumbs{},
+		Data:        make(map[string]interface{}),
+		Form:        form,
+		Language:    language,
+		request:     request,
+		Session:     session,
+		Template:    tpl,
+		writer:      writer,
 	}
 
 	return page, nil
@@ -110,6 +111,24 @@ func MustNewPage(writer http.ResponseWriter, request *http.Request, tpl *Templat
 		panic("pages.MustNewPage: " + err.Error())
 	}
 	return page
+}
+
+// FlashAll returns all flashes, removes them from session and saves the session
+// if necessary.
+func (p *Page) FlashAll() []sessions.Flash {
+	flashes := p.Session.Flashes().GetAll()
+
+	if len(flashes) > 0 {
+		p.Session.Flashes().RemoveAll()
+
+		if p.Session.IsStored() {
+			if err := p.Session.Save(p.writer); err != nil {
+				log.Printf("pages.Page.FlashAll: Saving session failed: %s", err)
+			}
+		}
+	}
+
+	return flashes
 }
 
 // Redirect redirects the client.
