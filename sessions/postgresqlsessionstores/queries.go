@@ -3,11 +3,11 @@ package postgresqlsessionstores
 // SQL query for creating sessions table. %s is replaced by the table name.
 const queryCreate = `
 	CREATE TABLE IF NOT EXISTS %s (
-		data TEXT NOT NULL,
-		date_created TIMESTAMP WITH TIME ZONE NOT NULL,
-		flashes TEXT NOT NULL,
-		id TEXT PRIMARY KEY,
-		user_id TEXT NOT NULL
+		data text NOT NULL,
+		date_created timestamp with time zone NOT NULL,
+		flashes text NOT NULL,
+		id text PRIMARY KEY,
+		user_id text NOT NULL
 	);
 
 	CREATE INDEX IF NOT EXISTS %s_by_date_created ON %s (
