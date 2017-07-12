@@ -75,9 +75,9 @@ type Page struct {
 func NewPage(writer http.ResponseWriter, request *http.Request, tpl *Template) (*Page, error) {
 	ctx := request.Context()
 
-	language, ok := languages.FromContext(ctx)
-	if !ok {
-		return nil, errors.New("pages.NewPage: languages.Language is not provided by context")
+	language, err := languages.FromContext(ctx)
+	if err != nil {
+		return nil, err
 	}
 
 	session, ok := sessions.FromContext(ctx)
