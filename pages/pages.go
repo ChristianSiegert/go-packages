@@ -80,9 +80,9 @@ func NewPage(writer http.ResponseWriter, request *http.Request, tpl *Template) (
 		return nil, err
 	}
 
-	session, ok := sessions.FromContext(ctx)
-	if !ok {
-		return nil, errors.New("pages.NewPage: sessions.Session is not provided by context")
+	session, err := sessions.FromContext(ctx)
+	if err != nil {
+		return nil, err
 	}
 
 	form, err := forms.New(request)

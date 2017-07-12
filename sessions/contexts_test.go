@@ -8,13 +8,12 @@ import (
 )
 
 func TestFromContext(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		ctx := r.Context()
+	server := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, request *http.Request) {
 		session := NewSession(nil, "session123")
-		newCtx := NewContext(ctx, session)
+		ctx := NewContext(request.Context(), session)
 
-		if session2, isPresent := FromContext(newCtx); !isPresent {
-			t.Error("Expected session to be present in context.")
+		if session2, err := FromContext(ctx); err != nil {
+			t.Error("Expected session to be carried by context.")
 		} else if !reflect.DeepEqual(session, session2) {
 			t.Errorf("Expect session %#v, got %#v", session, session2)
 		}

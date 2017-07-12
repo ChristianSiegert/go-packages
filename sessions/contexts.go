@@ -1,24 +1,33 @@
 package sessions
 
-import "context"
+import (
+	"context"
+	"errors"
+)
 
-// contextKey is used for attaching a session to a context.
 type contextKey int
 
-// key used for storing and retrieving the session from a context.
+// key is used to identify the value carried by context.
 const key contextKey = 0
+
+// ErrNoSession is the error returned by FromContext when context does not carry
+// a session.
+var ErrNoSession = errors.New("session not carried by context")
 
 // NewContext returns a new context that carries session.
 func NewContext(ctx context.Context, session Session) context.Context {
 	return context.WithValue(ctx, key, session)
 }
 
-// FromContext extracts the session from ctx. If no session is carried by ctx,
-// the second return argument is false.
-func FromContext(ctx context.Context) (Session, bool) {
+// FromContext returns the session from carreid by ctx. If no session is
+// carried, error is ErrNoSession.
+func FromContext(ctx context.Context) (Session, error) {
 	if ctx == nil {
-		return nil, false
+		return nil, ErrNoSession
 	}
 	session, ok := ctx.Value(key).(Session)
-	return session, ok
+	if !ok {
+		return nil, ErrNoSession
+	}
+	return session, nil
 }
