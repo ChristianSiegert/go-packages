@@ -1,4 +1,4 @@
-// package languages provides a mechanism to create and retrieve translations
+// Package languages provides a mechanism to create and retrieve translations
 // for languages. A language can be backed by fallback languages, so if a
 // translation does not exist in the language, its fallback languages are
 // checked in the specified order. Translations are pure Go code and thus
@@ -13,6 +13,7 @@ import (
 	"text/template"
 )
 
+// Language is a set of translation IDs and their translation text.
 type Language struct {
 	// Language code, e.g. “de”, “en” or “en-US”.
 	code string
@@ -38,17 +39,17 @@ func NewLanguage(code, name string) *Language {
 	}
 }
 
-// Add adds a translation to the language. If translationId already exists, the
+// Add adds a translation to the language. If translationID already exists, the
 // existing translation is replaced with the provided one. If the template
 // cannot be parsed, the method panics.
-func (l *Language) Add(translationId, translation string) *Translation {
-	tmpl, err := template.New(translationId).Parse(translation)
+func (l *Language) Add(translationID, translation string) *Translation {
+	tmpl, err := template.New(translationID).Parse(translation)
 	if err != nil {
-		panic(fmt.Errorf("languages: Parsing translation template failed: %s\n", err))
+		panic(fmt.Errorf("languages.Add: Parsing translation template failed: %s", err))
 	}
 
 	t := &Translation{Other: tmpl}
-	l.translations[translationId] = t
+	l.translations[translationID] = t
 	return t
 }
 
@@ -56,7 +57,7 @@ func (l *Language) Add(translationId, translation string) *Translation {
 // as translation IDs and items with an odd index are used as translations.
 func (l *Language) AddMulti(args ...string) error {
 	if len(args)%2 != 0 {
-		return errors.New("languages.AddMulti: Number of translation IDs and translations does not match.")
+		return errors.New("languages.AddMulti: Number of translation IDs and translations does not match")
 	}
 
 	for i, count := 0, len(args); i < count; i += 2 {
@@ -71,10 +72,10 @@ func (l *Language) Code() string {
 	return l.code
 }
 
-// Get retrieves a translation. If translationId cannot be found, nil is
+// Get retrieves a translation. If translationID cannot be found, nil is
 // returned.
-func (l *Language) Get(translationId string) *Translation {
-	return l.translations[translationId]
+func (l *Language) Get(translationID string) *Translation {
+	return l.translations[translationID]
 }
 
 // Name returns the language name, e.g. “German”.
@@ -83,15 +84,15 @@ func (l *Language) Name() string {
 }
 
 // Remove removes a translation from the language.
-func (l *Language) Remove(translationId string) {
-	delete(l.translations, translationId)
+func (l *Language) Remove(translationID string) {
+	delete(l.translations, translationID)
 }
 
-// T returns the translation associated with translationId. If the translation
+// T returns the translation associated with translationID. If the translation
 // is missing from l, l.Fallbacks will be checked. If the translation is still
-// missing, translationId is returned. Args is optional. The first item of args
+// missing, translationID is returned. Args is optional. The first item of args
 // is provided to the translation as data, additional items are ignored.
-func (l *Language) T(translationId string, args ...map[string]interface{}) string {
+func (l *Language) T(translationID string, args ...map[string]interface{}) string {
 	var templateData map[string]interface{}
 
 	if len(args) > 0 {
@@ -102,9 +103,9 @@ func (l *Language) T(translationId string, args ...map[string]interface{}) strin
 	languages = append(languages, l)
 	languages = append(languages, l.Fallbacks...)
 
-	// Find translation associated with translationId
+	// Find translation associated with translationID
 	for _, language := range languages {
-		translation := language.Get(translationId)
+		translation := language.Get(translationID)
 		if translation == nil {
 			continue
 		}
@@ -116,5 +117,5 @@ func (l *Language) T(translationId string, args ...map[string]interface{}) strin
 		}
 		return buf.String()
 	}
-	return translationId
+	return translationID
 }

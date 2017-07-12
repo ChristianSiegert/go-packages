@@ -16,7 +16,7 @@ func TestLanguage_AddMulti(t *testing.T) {
 	t.Logf("%d", len(language.translations))
 
 	var tests = []struct {
-		translationId string
+		translationID string
 		expected      string
 	}{
 		{"greeting", "Hallo"},
@@ -24,8 +24,8 @@ func TestLanguage_AddMulti(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		if actual := language.T(test.translationId); actual != test.expected {
-			t.Errorf("T(%q): Expected %q, got %q.", test.translationId, test.expected, actual)
+		if actual := language.T(test.translationID); actual != test.expected {
+			t.Errorf("T(%q): Expected %q, got %q.", test.translationID, test.expected, actual)
 		}
 	}
 }
@@ -48,7 +48,7 @@ func TestLanguage_T(t *testing.T) {
 	var tests = []struct {
 		language      *Language
 		fallbacks     []*Language
-		translationId string
+		translationID string
 		args          []map[string]interface{}
 		expected      string
 	}{
@@ -67,11 +67,11 @@ func TestLanguage_T(t *testing.T) {
 	for _, test := range tests {
 		test.language.Fallbacks = test.fallbacks
 
-		if actual := test.language.T(test.translationId, test.args...); actual != test.expected {
+		if actual := test.language.T(test.translationID, test.args...); actual != test.expected {
 			t.Errorf(
 				"Language %q: T(%q, %s): Expected %q, got %q.",
 				test.language.Name(),
-				test.translationId,
+				test.translationID,
 				test.args,
 				test.expected,
 				actual,
