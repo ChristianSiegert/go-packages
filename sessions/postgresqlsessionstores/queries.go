@@ -4,7 +4,7 @@ package postgresqlsessionstores
 const queryCreate = `
 	CREATE TABLE IF NOT EXISTS %s (
 		data text NOT NULL,
-		date_created timestamp with time zone DEFAULT now(),
+		date_created timestamp with time zone DEFAULT now() NOT NULL,
 		flashes text NOT NULL,
 		id text PRIMARY KEY,
 		user_id text NOT NULL,
