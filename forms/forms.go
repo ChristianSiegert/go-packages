@@ -10,6 +10,7 @@ import (
 	"github.com/ChristianSiegert/go-packages/validation"
 )
 
+// Form represents an HTML form.
 type Form struct {
 	request *http.Request
 
@@ -23,9 +24,11 @@ type Form struct {
 	ValidationMessages validation.Messages
 }
 
+// New returns a new instance of Form.
 func New(request *http.Request) (*Form, error) {
 	return &Form{
-		request: request,
+		request:            request,
+		ValidationMessages: validation.Messages{},
 	}, nil
 }
 
