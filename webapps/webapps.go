@@ -3,8 +3,10 @@ package webapps
 import (
 	"log"
 	"net/http"
+	"os"
 
 	"github.com/ChristianSiegert/go-packages/i18n/languages"
+	"github.com/ChristianSiegert/go-packages/loggers"
 	"github.com/ChristianSiegert/go-packages/sessions"
 	"github.com/julienschmidt/httprouter"
 )
@@ -18,22 +20,21 @@ type WebApp struct {
 	defaultLanguageCode string
 
 	languages    map[string]*languages.Language
-	logger       *log.Logger
+	Logger       *log.Logger
 	router       *httprouter.Router
 	serverHost   string
 	serverPort   string
-	sessionStore sessions.Store
+	SessionStore sessions.Store
 }
 
 // New returns a new WebApp.
-func New(host, port string, logger *log.Logger, sessionStore sessions.Store) *WebApp {
+func New(host, port string) *WebApp {
 	return &WebApp{
-		languages:    make(map[string]*languages.Language, 1),
-		logger:       logger,
-		router:       httprouter.New(),
-		serverHost:   host,
-		serverPort:   port,
-		sessionStore: sessionStore,
+		languages:  make(map[string]*languages.Language, 1),
+		Logger:     log.New(os.Stdout, "", log.Ldate|log.Ltime|log.Llongfile),
+		router:     httprouter.New(),
+		serverHost: host,
+		serverPort: port,
 	}
 }
 
@@ -49,6 +50,7 @@ func (w *WebApp) AddLanguage(language *languages.Language, isDefault bool) {
 func (w *WebApp) AddRoute(path string, handle httprouter.Handle, methods ...string) {
 	for _, method := range methods {
 		handle = w.handleLanguage(handle)
+		handle = w.handleLogger(handle)
 		handle = w.handleSession(handle)
 		w.router.Handle(method, path, handle)
 	}
@@ -87,16 +89,28 @@ func (w *WebApp) handleLanguage(handle httprouter.Handle) httprouter.Handle {
 	}
 }
 
+func (w *WebApp) handleLogger(handle httprouter.Handle) httprouter.Handle {
+	if w.Logger == nil {
+		return handle
+	}
+
+	return func(writer http.ResponseWriter, request *http.Request, params httprouter.Params) {
+		context := loggers.NewContext(request.Context(), w.Logger)
+		request = request.WithContext(context)
+		handle(writer, request, params)
+	}
+}
+
 func (w *WebApp) handleSession(handle httprouter.Handle) httprouter.Handle {
-	if w.sessionStore == nil {
+	if w.SessionStore == nil {
 		return handle
 	}
 
 	return func(writer http.ResponseWriter, request *http.Request, params httprouter.Params) {
 		// Get session for this request
-		session, err := w.sessionStore.Get(writer, request)
+		session, err := w.SessionStore.Get(writer, request)
 		if err != nil {
-			log.Println("webapps: Getting session failed: " + err.Error())
+			w.Logger.Println("webapps: Getting session failed: " + err.Error())
 			http.Error(writer, "Interal Server Error", http.StatusInternalServerError)
 			return
 		}
