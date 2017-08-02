@@ -19,12 +19,13 @@ func NewContext(ctx context.Context, session Session) context.Context {
 	return context.WithValue(ctx, key, session)
 }
 
-// FromContext returns the session from carreid by ctx. If no session is
-// carried, error is ErrNoSession.
+// FromContext returns the session carried by ctx. If no session is carried,
+// error is ErrNoSession.
 func FromContext(ctx context.Context) (Session, error) {
 	if ctx == nil {
 		return nil, ErrNoSession
 	}
+
 	session, ok := ctx.Value(key).(Session)
 	if !ok {
 		return nil, ErrNoSession
