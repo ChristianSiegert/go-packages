@@ -1,6 +1,10 @@
-// Package postgresqlsessionstores provides a session store backed by a
-// PostgreSQL database.
-package postgresqlsessionstores
+// Package sqlsessionstores provides a session store backed by an SQL
+// database. Supported dialects are PostgreSQL and SQLite.
+//
+// You have to import the appropriate SQL driver yourself, e.g.:
+//     _ "github.com/lib/pq"           // for PostgreSQL, or:
+//     _ "github.com/mattn/go-sqlite3" // for SQLite
+package sqlsessionstores
 
 import (
 	"crypto/rand"
@@ -15,59 +19,117 @@ import (
 	"time"
 
 	"github.com/ChristianSiegert/go-packages/sessions"
-
-	// Register PostgreSQL driver
-	_ "github.com/lib/pq"
 )
 
-// Pattern for matching a session ID.
-var patternID = regexp.MustCompile("^[0-9a-zA-Z=/+]+$")
+// Pattern is the pattern used to match a session ID.
+var pattern = regexp.MustCompile("^[0-9a-zA-Z=/+]+$")
 
-// KeyUserID is used to retrieve the user ID from the session.Values container
-// and store it in the table in an indexed column. This makes it possible to
-// delete all sessions of a particular user.
+// KeyUserID is the key used to retrieve the user ID from session.Values and
+// store it in an indexed table column. This makes it possible to delete all
+// sessions of a particular user.
 var KeyUserID = "user.id"
+
+// authMethod is the method used to pass session IDs between server and client.
+type authMethod string
+
+const (
+	// AuthMethodCookie means the session ID is passed via cookie.
+	AuthMethodCookie = authMethod("cookie")
+
+	// AuthMethodHeader means the session ID is passed via request header.
+	AuthMethodHeader = authMethod("header")
+)
+
+// Dialect is the SQL dialect the store uses.
+type dialect string
+
+// Supported SQL dialects.
+const (
+	DialectPostgreSQL = dialect("postgres")
+	DialectSQLite     = dialect("sqlite")
+)
 
 // Store contains information about the session store.
 type Store struct {
-	cookieDomain string
-	cookieName   string
-	cookiePath   string
-	db           *sql.DB
+	// Authentication options.
+	AuthOptions AuthOptions
 
-	// Duration after which sessions expire.
+	// DB is the database in which the sessions table resides.
+	DB *sql.DB
+
+	// SQL dialect to use.
+	Dialect dialect
+
+	// Expiration is the duration after which sessions expire.
 	Expiration time.Duration
 
-	sessionStrength int
-	tableName       string
+	// Strength is the number of bytes to use for generating a session ID. The
+	// higher the number, the more secure the session ID.
+	Strength int
+
+	// TableName is the name of the sessions table.
+	TableName string
 }
 
-// New returns a new PostgreSQL session store. If a database table with the
-// specified name does not exist, it is created.
-func New(db *sql.DB, tableName, cookieName, cookieDomain, cookiePath string, strength int) (sessions.Store, error) {
-	if err := createSchema(db, tableName); err != nil {
+// AuthOptions is the authentification configuration for the store. If
+// AuthMethod is AuthMethodCookie, Cookie… options are used. If AuthMethod is
+//  AuthMethodHeader, Header… options are used.
+type AuthOptions struct {
+	AuthMethod authMethod
+
+	// Cookie… fields are used when setting the cookie.
+	CookieDomain string
+	CookieName   string
+	CookiePath   string
+
+	// HeaderName is the name of the request header that is used to pass the
+	// session ID.
+	HeaderName string
+}
+
+// New returns a new Store. If a table with the specified name does not exist,
+// it is created.
+func New(db *sql.DB, tableName string, dialect dialect, authOptions AuthOptions) (*Store, error) {
+	if err := createSchema(db, tableName, dialect); err != nil {
 		return nil, err
 	}
 
-	return &Store{
-		cookieDomain:    cookieDomain,
-		cookieName:      cookieName,
-		cookiePath:      cookiePath,
-		db:              db,
-		Expiration:      14 * 24 * time.Hour,
-		sessionStrength: strength,
-		tableName:       tableName,
-	}, nil
+	store := &Store{
+		AuthOptions: authOptions,
+		DB:          db,
+		Dialect:     dialect,
+		Expiration:  14 * 24 * time.Hour,
+		Strength:    40,
+		TableName:   tableName,
+	}
+
+	return store, nil
 }
 
-// Delete deletes a session from the store, and deletes the session cookie.
+func createSchema(db *sql.DB, tableName string, dialect dialect) error {
+	query := fmt.Sprintf(
+		queries[dialect][queryCreate],
+		tableName,
+		tableName,
+		tableName,
+		tableName,
+		tableName,
+	)
+
+	_, err := db.Exec(query)
+	return err
+}
+
+// Delete deletes a session from the store.
 func (s *Store) Delete(writer http.ResponseWriter, sessionID string) error {
-	query := fmt.Sprintf(queryDelete, s.tableName)
-	if _, err := s.db.Exec(query, sessionID); err != nil {
+	query := fmt.Sprintf(queries[s.Dialect][queryDelete], s.TableName)
+	if _, err := s.DB.Exec(query, sessionID); err != nil {
 		return err
 	}
 
-	s.deleteCookie(writer)
+	if s.AuthOptions.AuthMethod == AuthMethodCookie {
+		s.deleteCookie(writer)
+	}
 	return nil
 }
 
@@ -79,29 +141,39 @@ func (s *Store) DeleteMulti(filter *sessions.Filter) error {
 	}
 
 	query := "DELETE FROM %s"
-	query = fmt.Sprintf(query, s.tableName)
+	query = fmt.Sprintf(query, s.TableName)
 
-	_, err := s.db.Exec(query)
+	_, err := s.DB.Exec(query)
 	return err
 }
 
 // Get gets a session from the store using the session ID stored in the session
 // cookie.
 func (s *Store) Get(writer http.ResponseWriter, request *http.Request) (sessions.Session, error) {
-	cookie, err := request.Cookie(s.cookieName)
+	var sessionID string
 
-	if err == http.ErrNoCookie {
-		return s.newSession()
-	} else if err != nil {
-		return nil, err
+	switch s.AuthOptions.AuthMethod {
+	case AuthMethodCookie:
+		cookie, err := request.Cookie(s.AuthOptions.CookieName)
+
+		if err == http.ErrNoCookie {
+			return s.newSession()
+		} else if err != nil {
+			return nil, err
+		} else if !isID(cookie.Value) {
+			s.deleteCookie(writer)
+			return s.newSession()
+		}
+		sessionID = cookie.Value
+	case AuthMethodHeader:
+		sessionID = request.Header.Get(s.AuthOptions.HeaderName)
 	}
 
-	if !isID(cookie.Value) {
-		s.deleteCookie(writer)
+	if !isID(sessionID) {
 		return s.newSession()
 	}
 
-	session := sessions.NewSession(s, cookie.Value)
+	session := sessions.NewSession(s, sessionID)
 
 	temp := struct {
 		dateCreated    time.Time
@@ -112,10 +184,10 @@ func (s *Store) Get(writer http.ResponseWriter, request *http.Request) (sessions
 		values         map[string]string
 	}{}
 
-	query := fmt.Sprintf(queryGet, s.tableName)
-	row := s.db.QueryRow(query, session.ID())
+	query := fmt.Sprintf(queries[s.Dialect][queryGet], s.TableName)
+	row := s.DB.QueryRow(query, session.ID())
 
-	err = row.Scan(
+	err := row.Scan(
 		&temp.encodedValues,
 		&temp.dateCreated,
 		&temp.encodedFlashes,
@@ -156,9 +228,11 @@ func (s *Store) GetMulti(filter *sessions.Filter) ([]sessions.Session, error) {
 
 // Save saves a session to the store and creates / updates the session cookie.
 func (s *Store) Save(writer http.ResponseWriter, session sessions.Session) error {
-	s.saveCookie(writer, session)
+	if s.AuthOptions.AuthMethod == AuthMethodCookie {
+		s.saveCookie(writer, session)
+	}
 
-	query := fmt.Sprintf(querySave, s.tableName)
+	query := fmt.Sprintf(queries[s.Dialect][querySave], s.TableName)
 
 	encodedFlashes, err := json.Marshal(session.Flashes().GetAll())
 	if err != nil {
@@ -170,7 +244,7 @@ func (s *Store) Save(writer http.ResponseWriter, session sessions.Session) error
 		return err
 	}
 
-	_, err = s.db.Exec(
+	_, err = s.DB.Exec(
 		query,
 		encodedValues,
 		session.DateCreated(),
@@ -189,7 +263,7 @@ func (s *Store) Save(writer http.ResponseWriter, session sessions.Session) error
 
 // SaveMulti saves the provided sessions.
 func (s *Store) SaveMulti(sessions []sessions.Session) (e error) {
-	tx, err := s.db.Begin()
+	tx, err := s.DB.Begin()
 	if err != nil {
 		return err
 	}
@@ -202,7 +276,7 @@ func (s *Store) SaveMulti(sessions []sessions.Session) (e error) {
 		}
 	}()
 
-	query := fmt.Sprintf(querySave, s.tableName)
+	query := fmt.Sprintf(queries[s.Dialect][querySave], s.TableName)
 	statement, err := tx.Prepare(query)
 	if err != nil {
 		return err
@@ -237,7 +311,7 @@ func (s *Store) SaveMulti(sessions []sessions.Session) (e error) {
 
 // newSession returns a new session with a randomly generated ID.
 func (s *Store) newSession() (sessions.Session, error) {
-	id, err := generateID(s.sessionStrength)
+	id, err := generateID(s.Strength)
 	if err != nil {
 		return nil, err
 	}
@@ -248,24 +322,24 @@ func (s *Store) saveCookie(writer http.ResponseWriter, session sessions.Session)
 	dateExpires := session.DateCreated().Add(s.Expiration)
 
 	http.SetCookie(writer, &http.Cookie{
-		Domain:   s.cookieDomain,
+		Domain:   s.AuthOptions.CookieDomain,
 		Expires:  dateExpires,
 		HttpOnly: true,
 		MaxAge:   int(dateExpires.Sub(time.Now()).Seconds()),
-		Name:     s.cookieName,
-		Path:     s.cookiePath,
+		Name:     s.AuthOptions.CookieName,
+		Path:     s.AuthOptions.CookiePath,
 		Value:    session.ID(),
 	})
 }
 
 func (s *Store) deleteCookie(writer http.ResponseWriter) {
 	http.SetCookie(writer, &http.Cookie{
-		Domain:   s.cookieDomain,
+		Domain:   s.AuthOptions.CookieDomain,
 		Expires:  time.Now().Add(-24 * time.Hour),
 		HttpOnly: true,
 		MaxAge:   -1,
-		Name:     s.cookieName,
-		Path:     s.cookiePath,
+		Name:     s.AuthOptions.CookieName,
+		Path:     s.AuthOptions.CookiePath,
 	})
 }
 
@@ -281,11 +355,5 @@ func generateID(strength int) (string, error) {
 
 // isID checks whether id is a valid session ID.
 func isID(id string) bool {
-	return patternID.MatchString(id)
-}
-
-func createSchema(db *sql.DB, tableName string) error {
-	query := fmt.Sprintf(queryCreate, tableName, tableName, tableName, tableName, tableName)
-	_, err := db.Exec(query)
-	return err
+	return pattern.MatchString(id)
 }

@@ -1,4 +1,4 @@
-package sqlitesessionstores
+package sqlsessionstores
 
 import (
 	"database/sql"
@@ -13,26 +13,37 @@ import (
 	"time"
 
 	"github.com/ChristianSiegert/go-packages/sessions"
+
+	// Register SQL drivers
+	_ "github.com/lib/pq"
+	_ "github.com/mattn/go-sqlite3"
 )
 
-var dateCreated = time.Date(2099, 12, 31, 13, 14, 15, 16, &time.Location{})
+var dateCreated = time.Date(2099, 12, 31, 13, 14, 15, 0, time.Local)
 
-func setUp() (*sql.DB, sessions.Store, error) {
-	filename := path.Join(os.TempDir(), "test.sqlite")
+func setUp(dialect dialect) (*sql.DB, sessions.Store, error) {
+	var db *sql.DB
+	var err error
+	const tableName = "test_sessions"
 
-	// Clean up
-	if err := os.Remove(filename); err != nil && !os.IsNotExist(err) {
-		return nil, nil, fmt.Errorf("Removing database file failed: %s", err)
+	switch dialect {
+	case DialectPostgreSQL:
+		db, err = setUpPostgres(tableName)
+	case DialectSQLite:
+		db, err = setUpSQLite()
 	}
 
-	// Open database
-	db, err := sql.Open("sqlite3", filename)
 	if err != nil {
-		return nil, nil, fmt.Errorf("Opening database failed: %s", err)
+		return nil, nil, err
 	}
 
 	// Create store instance
-	store, err := New(db, "test_sessions", "s", "", "", 10)
+	authOptions := AuthOptions{
+		AuthMethod: AuthMethodCookie,
+		CookieName: "session",
+	}
+
+	store, err := New(db, tableName, dialect, authOptions)
 	if err != nil {
 		db.Close()
 		return nil, nil, fmt.Errorf("Creating store failed:%s", err)
@@ -40,12 +51,53 @@ func setUp() (*sql.DB, sessions.Store, error) {
 	return db, store, nil
 }
 
+func setUpPostgres(tableName string) (*sql.DB, error) {
+	const dbName = "go-packages"
+	const dbUser = "christian"
+
+	// Open database
+	db, err := sql.Open("postgres", fmt.Sprintf("dbname='%s' sslmode=disable user='%s'", dbName, dbUser))
+	if err != nil {
+		return nil, fmt.Errorf("Opening database failed: %s", err)
+	}
+
+	// Delete table
+	query := fmt.Sprintf("DROP TABLE IF EXISTS %s", tableName)
+	_, err = db.Exec(query)
+	if err != nil {
+		return nil, fmt.Errorf("Deleting table %q failed: %s", tableName, err)
+	}
+	return db, nil
+}
+
+func setUpSQLite() (*sql.DB, error) {
+	filename := path.Join(os.TempDir(), "test.sqlite")
+
+	// Delete previous database file
+	if err := os.Remove(filename); err != nil && !os.IsNotExist(err) {
+		return nil, fmt.Errorf("Removing database file failed: %s", err)
+	}
+
+	// Open database
+	db, err := sql.Open("sqlite3", filename)
+	if err != nil {
+		return nil, fmt.Errorf("Opening database failed: %s", err)
+	}
+	return db, nil
+}
+
 func tearDown(db *sql.DB) {
 	db.Close()
 }
 
 func Test(t *testing.T) {
-	db, store, err := setUp()
+	for _, dialect := range []dialect{DialectPostgreSQL, DialectSQLite} {
+		test(dialect, t)
+	}
+}
+
+func test(dialect dialect, t *testing.T) {
+	db, store, err := setUp(dialect)
 	if err != nil {
 		t.Error(err)
 	}
@@ -95,6 +147,8 @@ func testSave(writer http.ResponseWriter, request *http.Request, t *testing.T, s
 		t.Errorf("Saving session failed: %s", err)
 	} else if writer.Header().Get("Set-Cookie") == "" {
 		t.Errorf("Expected header Set-Cookie to be set.")
+	} else if !session.IsStored() {
+		t.Errorf("Expected session.IsStored() to be true, is false.")
 	}
 }
 
@@ -113,6 +167,8 @@ func testGet(writer http.ResponseWriter, request *http.Request, t *testing.T, st
 		t.Errorf("Expected Flashes %#v, got %#v", expectedSession.Flashes(), session.Flashes())
 	} else if session.ID() != expectedSession.ID() {
 		t.Errorf("Expected ID %q, got %q.", expectedSession.ID(), session.ID())
+	} else if !session.IsStored() {
+		t.Errorf("Expected session.IsStored() to be true, is false.")
 	} else if !reflect.DeepEqual(session.Values(), expectedSession.Values()) {
 		t.Errorf("Expected Values %#v, got %#v", expectedSession.Values(), session.Values())
 	}
@@ -131,7 +187,13 @@ func testDelete(writer http.ResponseWriter, request *http.Request, t *testing.T,
 }
 
 func TestMulti(t *testing.T) {
-	db, store, err := setUp()
+	for _, dialect := range []dialect{DialectPostgreSQL, DialectSQLite} {
+		testMulti(dialect, t)
+	}
+}
+
+func testMulti(dialect dialect, t *testing.T) {
+	db, store, err := setUp(dialect)
 	if err != nil {
 		t.Error(err)
 	}
