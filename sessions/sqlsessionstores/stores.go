@@ -73,7 +73,7 @@ type Store struct {
 
 // AuthOptions is the authentification configuration for the store. If
 // AuthMethod is AuthMethodCookie, Cookie… options are used. If AuthMethod is
-//  AuthMethodHeader, Header… options are used.
+// AuthMethodHeader, Header… options are used.
 type AuthOptions struct {
 	AuthMethod authMethod
 
@@ -134,7 +134,7 @@ func (s *Store) Delete(writer http.ResponseWriter, sessionID string) error {
 }
 
 // DeleteMulti deletes sessions from the store that match the criteria specified
-// in filter.
+// in filter. If no criterion is specified, all sessions are deleted.
 func (s *Store) DeleteMulti(filter *sessions.Filter) error {
 	if filter != nil {
 		return errors.New("filter not implemented")
@@ -147,8 +147,8 @@ func (s *Store) DeleteMulti(filter *sessions.Filter) error {
 	return err
 }
 
-// Get gets a session from the store using the session ID stored in the session
-// cookie.
+// Get gets a session from the store using the session ID passed with the
+// request via cookie or header (depending on s.AuthOptions.AuthMethod).
 func (s *Store) Get(writer http.ResponseWriter, request *http.Request) (sessions.Session, error) {
 	var sessionID string
 
@@ -226,7 +226,8 @@ func (s *Store) GetMulti(filter *sessions.Filter) ([]sessions.Session, error) {
 	return nil, errors.New("method not implemented")
 }
 
-// Save saves a session to the store and creates / updates the session cookie.
+// Save saves a session to the store. If s.AuthOptions.AuthMethod is
+// AuthMethodCookie, it creates or updates the session cookie.
 func (s *Store) Save(writer http.ResponseWriter, session sessions.Session) error {
 	if s.AuthOptions.AuthMethod == AuthMethodCookie {
 		s.saveCookie(writer, session)
