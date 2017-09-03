@@ -260,7 +260,7 @@ func (p *Page) ServeNotFound() {
 // ServeUnauthorized serves a page that tells the user the requested page cannot
 // be accessed due to insufficient access rights.
 func (p *Page) ServeUnauthorized() {
-	p.Session.Flashes().AddNew(p.T("err_unauthorized_access"), FlashTypeError)
+	p.Session.Flashes().AddNew(p.T("err_401_unauthorized"), FlashTypeError)
 	p.writer.WriteHeader(http.StatusUnauthorized)
 	p.ServeEmpty()
 }
