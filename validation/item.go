@@ -30,7 +30,7 @@ type Item struct {
 // EmailAddress checks if the item’s value is an e-mail address. It only checks
 // the length and whether there is exactly one “at” sign preceded and followed
 // by at least one character.
-func (i *Item) EmailAddress(errorMessage string) *Item {
+func (i *Item) EmailAddress(message string) *Item {
 	i.Rules = append(i.Rules, &Rule{
 		Func: func(value interface{}) (bool, error) {
 			switch value := value.(type) {
@@ -39,7 +39,7 @@ func (i *Item) EmailAddress(errorMessage string) *Item {
 			}
 			return false, fmt.Errorf("validation.Item.EmailAddress: unsupported value type %T", value)
 		},
-		Message: errorMessage,
+		Message: message,
 		Type:    RuleTypeEmailAddress,
 	})
 	return i
