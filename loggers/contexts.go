@@ -20,8 +20,8 @@ func NewContext(ctx context.Context, logger *log.Logger) context.Context {
 	return context.WithValue(ctx, key, logger)
 }
 
-// FromContext returns the logger from carried by ctx. If no logger is
-// carried, error is ErrNoLogger.
+// FromContext returns the logger carried by ctx. If no logger is carried, error
+// is ErrNoLogger.
 func FromContext(ctx context.Context) (*log.Logger, error) {
 	if ctx == nil {
 		return nil, ErrNoLogger
