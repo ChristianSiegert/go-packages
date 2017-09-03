@@ -1,57 +1,39 @@
 package webapps
 
 import (
-	"log"
 	"net/http"
-	"os"
 
 	"github.com/ChristianSiegert/go-packages/i18n/languages"
-	"github.com/ChristianSiegert/go-packages/loggers"
 	"github.com/ChristianSiegert/go-packages/sessions"
 	"github.com/julienschmidt/httprouter"
 )
 
-// ParamLanguage is the route parameter that stores the language code.
-const ParamLanguage = "lang"
+// Hook is a function that is called before a route’s handle function.
+type Hook func(httprouter.Handle) httprouter.Handle
 
 // WebApp represents a web application or web site.
 type WebApp struct {
-	// Default language to redirect to when requested language is not supported.
-	defaultLanguageCode string
-
-	languages    map[string]*languages.Language
-	Logger       *log.Logger
-	router       *httprouter.Router
-	serverHost   string
-	serverPort   string
-	SessionStore sessions.Store
+	hooks      []Hook
+	router     *httprouter.Router
+	serverHost string
+	serverPort string
 }
 
 // New returns a new WebApp.
 func New(host, port string) *WebApp {
 	return &WebApp{
-		languages:  make(map[string]*languages.Language, 1),
-		Logger:     log.New(os.Stdout, "", log.Ldate|log.Ltime|log.Llongfile),
 		router:     httprouter.New(),
 		serverHost: host,
 		serverPort: port,
 	}
 }
 
-// AddLanguage adds a language to w.
-func (w *WebApp) AddLanguage(language *languages.Language, isDefault bool) {
-	w.languages[language.Code()] = language
-	if isDefault {
-		w.defaultLanguageCode = language.Code()
-	}
-}
-
 // AddRoute adds a route to w.
 func (w *WebApp) AddRoute(path string, handle httprouter.Handle, methods ...string) {
 	for _, method := range methods {
-		handle = w.handleLanguage(handle)
-		handle = w.handleLogger(handle)
-		handle = w.handleSession(handle)
+		for _, hook := range w.hooks {
+			handle = hook(handle)
+		}
 		w.router.Handle(method, path, handle)
 	}
 }
@@ -62,66 +44,10 @@ func (w *WebApp) AddFileDir(urlPath, dirPath string) {
 	w.router.ServeFiles(urlPath, http.Dir(dirPath))
 }
 
-func (w *WebApp) handleLanguage(handle httprouter.Handle) httprouter.Handle {
-	if len(w.languages) == 0 {
-		return handle
-	}
-
-	return func(writer http.ResponseWriter, request *http.Request, params httprouter.Params) {
-		languageCode := params.ByName(ParamLanguage)
-
-		// If language is not supported, redirect to default language
-		language, ok := w.languages[languageCode]
-		if !ok {
-			if w.defaultLanguageCode == "" {
-				panic("webapps: No default language set.")
-			}
-			http.Redirect(writer, request, "/"+w.defaultLanguageCode, http.StatusSeeOther)
-			return
-		}
-
-		// Add language to context
-		context := languages.NewContext(request.Context(), language)
-		request = request.WithContext(context)
-
-		// Execute given handle
-		handle(writer, request, params)
-	}
-}
-
-func (w *WebApp) handleLogger(handle httprouter.Handle) httprouter.Handle {
-	if w.Logger == nil {
-		return handle
-	}
-
-	return func(writer http.ResponseWriter, request *http.Request, params httprouter.Params) {
-		context := loggers.NewContext(request.Context(), w.Logger)
-		request = request.WithContext(context)
-		handle(writer, request, params)
-	}
-}
-
-func (w *WebApp) handleSession(handle httprouter.Handle) httprouter.Handle {
-	if w.SessionStore == nil {
-		return handle
-	}
-
-	return func(writer http.ResponseWriter, request *http.Request, params httprouter.Params) {
-		// Get session for this request
-		session, err := w.SessionStore.Get(writer, request)
-		if err != nil {
-			w.Logger.Println("webapps: Getting session failed: " + err.Error())
-			http.Error(writer, "Interal Server Error", http.StatusInternalServerError)
-			return
-		}
-
-		// Add session to context
-		context := sessions.NewContext(request.Context(), session)
-		request = request.WithContext(context)
-
-		// Execute given handle
-		handle(writer, request, params)
-	}
+// AddHook adds a function that is executed before httprouter.Handle from
+// AddRoute executes. Hooks added after calling AddRoute are ignored.
+func (w *WebApp) AddHook(hook Hook) {
+	w.hooks = append(w.hooks, hook)
 }
 
 // Start starts the HTTP server.
@@ -132,6 +58,43 @@ func (w *WebApp) Start() error {
 
 // StartWithTLS starts the HTTP server with TLS (Transport Layer Security).
 func (w *WebApp) StartWithTLS(certificatePath, keyPath string) error {
-	serverAddress := w.serverHost + w.serverPort
+	serverAddress := w.serverHost + ":" + w.serverPort
 	return http.ListenAndServeTLS(serverAddress, certificatePath, keyPath, w.router)
+}
+
+// LanguageHook creates a hook that adds the user-selected language to the
+// context. param is the name of the route parameter that contains the language
+// code. defaultURL is the URL to redirect to when the requested language is not
+// supported.
+func LanguageHook(param string, langs map[string]*languages.Language, defaultURL string) Hook {
+	return func(handle httprouter.Handle) httprouter.Handle {
+		return func(writer http.ResponseWriter, request *http.Request, params httprouter.Params) {
+			languageCode := params.ByName(param)
+
+			language, ok := langs[languageCode]
+			if !ok {
+				http.Redirect(writer, request, defaultURL, http.StatusSeeOther)
+				return
+			}
+
+			context := languages.NewContext(request.Context(), language)
+			request = request.WithContext(context)
+
+			handle(writer, request, params)
+		}
+	}
+}
+
+// SessionHook creates a hook that adds the session to the context.
+func SessionHook(sessionStore sessions.Store) Hook {
+	return func(handle httprouter.Handle) httprouter.Handle {
+		return func(writer http.ResponseWriter, request *http.Request, params httprouter.Params) {
+			if session, err := sessionStore.Get(writer, request); err == nil {
+				context := sessions.NewContext(request.Context(), session)
+				request = request.WithContext(context)
+			}
+
+			handle(writer, request, params)
+		}
+	}
 }
