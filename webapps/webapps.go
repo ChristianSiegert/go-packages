@@ -62,10 +62,10 @@ func (w *WebApp) StartWithTLS(certificatePath, keyPath string) error {
 	return http.ListenAndServeTLS(serverAddress, certificatePath, keyPath, w.router)
 }
 
-// LanguageHook creates a hook that adds the user-selected language to the
-// context. param is the name of the route parameter that contains the language
-// code. defaultURL is the URL to redirect to when the requested language is not
-// supported.
+// LanguageHook returns a hook that adds the user-selected language to the
+// request context. param is the name of the route parameter that contains the
+// language code. defaultURL is the URL to redirect to when the requested
+// language is not supported.
 func LanguageHook(param string, langs map[string]*languages.Language, defaultURL string) Hook {
 	return func(handle httprouter.Handle) httprouter.Handle {
 		return func(writer http.ResponseWriter, request *http.Request, params httprouter.Params) {
@@ -85,7 +85,7 @@ func LanguageHook(param string, langs map[string]*languages.Language, defaultURL
 	}
 }
 
-// SessionHook creates a hook that adds the session to the context.
+// SessionHook returns a hook that adds the session to the request context.
 func SessionHook(sessionStore sessions.Store) Hook {
 	return func(handle httprouter.Handle) httprouter.Handle {
 		return func(writer http.ResponseWriter, request *http.Request, params httprouter.Params) {
