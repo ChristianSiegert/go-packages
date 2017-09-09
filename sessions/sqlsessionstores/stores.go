@@ -229,8 +229,11 @@ func (s *Store) GetMulti(filter *sessions.Filter) ([]sessions.Session, error) {
 // Save saves a session to the store. If s.AuthOptions.AuthMethod is
 // AuthMethodCookie, it creates or updates the session cookie.
 func (s *Store) Save(writer http.ResponseWriter, session sessions.Session) error {
-	if s.AuthOptions.AuthMethod == AuthMethodCookie {
+	switch s.AuthOptions.AuthMethod {
+	case AuthMethodCookie:
 		s.saveCookie(writer, session)
+	case AuthMethodHeader:
+		writer.Header().Set(s.AuthOptions.HeaderName, session.ID())
 	}
 
 	query := fmt.Sprintf(queries[s.Dialect][querySave], s.TableName)
