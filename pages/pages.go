@@ -20,6 +20,11 @@ import (
 // FlashTypeError is the flash type used for error messages.
 var FlashTypeError = "error"
 
+// Log logs errors. The function can be replaced to use a custom logger.
+var Log = func(err error) {
+	log.Println(err)
+}
+
 // ReloadTemplates is a flag for whether NewPage and MustNewPage should reload
 // templates on every request. Reloading templates is useful to see changes
 // without recompiling. In production, reloading should be disabled.
@@ -123,7 +128,7 @@ func (p *Page) FlashAll() []sessions.Flash {
 
 		if p.Session.IsStored() {
 			if err := p.Session.Save(p.writer); err != nil {
-				log.Printf("pages.Page.FlashAll: Saving session failed: %s", err)
+				Log(fmt.Errorf("pages.Page.FlashAll: saving session failed: %s", err))
 			}
 		}
 	}
@@ -165,10 +170,10 @@ func (p *Page) RequireSignIn(pageTitle string) {
 // Error serves an error page with a generic error message. Err is not displayed
 // to the user but written to the error log.
 func (p *Page) Error(err error) {
-	log.Println(err.Error())
+	Log(err)
 
 	if TemplateError == nil {
-		log.Println("pages.Page.Error: No error template provided.")
+		Log(errors.New("pages.Page.Error: no error template provided"))
 		http.Error(p.writer, "Internal Server Error", http.StatusInternalServerError)
 		return
 	}
@@ -182,14 +187,14 @@ func (p *Page) Error(err error) {
 
 	if ReloadTemplates {
 		if err := p.Template.Reload(); err != nil {
-			log.Printf("pages.Page.Error: Reloading template failed: %s\n", p.Template.paths)
+			Log(fmt.Errorf("pages.Page.Error: reloading template failed: %s", p.Template.paths))
 			http.Error(p.writer, "Internal Server Error", http.StatusInternalServerError)
 		}
 	}
 
 	templateName := path.Base(TemplateError.paths[0])
 	if err := TemplateError.template.ExecuteTemplate(buffer, templateName, p); err != nil {
-		log.Printf("pages.Page.Error: Executing template failed: %s\n", err)
+		Log(fmt.Errorf("pages.Page.Error: executing template failed: %s", err))
 		http.Error(p.writer, "Internal Server Error", http.StatusInternalServerError)
 		return
 	}
@@ -197,7 +202,7 @@ func (p *Page) Error(err error) {
 	b := html.RemoveWhitespace(buffer.Bytes())
 
 	if _, err := bytes.NewBuffer(b).WriteTo(p.writer); err != nil {
-		log.Printf("pages.Page.Error: Writing template to buffer failed: %s\n", err)
+		Log(fmt.Errorf("pages.Page.Error: writing template to buffer failed: %s", err))
 		http.Error(p.writer, "Internal Server Error", http.StatusInternalServerError)
 	}
 }
@@ -271,7 +276,7 @@ func (p *Page) ServeUnauthorized() {
 // should be informed of a problem while the state, e.g. a filled in form, is
 // preserved.
 func (p *Page) ServeWithError(err error) {
-	log.Println(err.Error())
+	Log(err)
 	p.Session.Flashes().AddNew(p.T("err_505_internal_server_error"), FlashTypeError)
 	p.Serve()
 }
