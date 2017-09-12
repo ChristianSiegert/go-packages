@@ -20,7 +20,7 @@ import (
 // FlashTypeError is the flash type used for error messages.
 var FlashTypeError = "error"
 
-// Log logs errors. The function can be replaced to use a custom logger.
+// Log logs errors. The function can be replaced with a custom log function.
 var Log = func(err error) {
 	log.Println(err)
 }
