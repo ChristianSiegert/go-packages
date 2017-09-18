@@ -171,6 +171,7 @@ func (p *Page) RequireSignIn(pageTitle string) {
 // to the user but written to the error log.
 func (p *Page) Error(err error) {
 	Log(err)
+	p.Data["Error"] = err
 
 	if TemplateError == nil {
 		Log(errors.New("pages.Page.Error: no error template provided"))
@@ -178,21 +179,16 @@ func (p *Page) Error(err error) {
 		return
 	}
 
-	buffer := bytes.NewBuffer([]byte{})
-
-	p.Data = map[string]interface{}{
-		"Error":          err,
-		"IsDevAppServer": true,
-	}
-
 	if ReloadTemplates {
-		if err := p.Template.Reload(); err != nil {
+		if err := TemplateError.Reload(); err != nil {
 			Log(fmt.Errorf("pages.Page.Error: reloading template failed: %s", p.Template.paths))
 			http.Error(p.writer, "Internal Server Error", http.StatusInternalServerError)
 		}
 	}
 
+	buffer := bytes.NewBuffer([]byte{})
 	templateName := path.Base(TemplateError.paths[0])
+
 	if err := TemplateError.template.ExecuteTemplate(buffer, templateName, p); err != nil {
 		Log(fmt.Errorf("pages.Page.Error: executing template failed: %s", err))
 		http.Error(p.writer, "Internal Server Error", http.StatusInternalServerError)
@@ -277,7 +273,7 @@ func (p *Page) ServeUnauthorized() {
 // preserved.
 func (p *Page) ServeWithError(err error) {
 	Log(err)
-	p.Session.Flashes().AddNew(p.T("err_505_internal_server_error"), FlashTypeError)
+	p.Session.Flashes().AddNew(p.T("err_500_internal_server_error"), FlashTypeError)
 	p.Serve()
 }
 
