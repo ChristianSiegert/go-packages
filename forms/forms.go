@@ -161,8 +161,8 @@ func (f *Form) Radio(fieldName, value string) *elements.Element {
 }
 
 // Password returns an <input type="password"> element.
-func (f *Form) Password(fieldName, placeholder string) *elements.Element {
-	element := f.Input(fieldName, placeholder)
+func (f *Form) Password(fieldName, placeholder string, attributes ...string) *elements.Element {
+	element := f.Input(fieldName, placeholder, attributes...)
 	element.Attributes["type"] = "password"
 	return element
 }
