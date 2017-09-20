@@ -17,6 +17,17 @@ func TestPermissions_Has(t *testing.T) {
 	}
 }
 
+func TestPermissions_HasOne(t *testing.T) {
+	permissions := make(Permissions)
+	permissions.Add(permissionA)
+
+	if result, expected := permissions.HasOne(permissionA, permissionB), true; result != expected {
+		t.Errorf("HasOne returned %t, expected %t", result, expected)
+	} else if result, expected := permissions.HasOne(permissionB), false; result != expected {
+		t.Errorf("HasOne returned %t, expected %t", result, expected)
+	}
+}
+
 func TestPermissions_Remove(t *testing.T) {
 	permissions := make(Permissions)
 	permissions.Add(permissionA)

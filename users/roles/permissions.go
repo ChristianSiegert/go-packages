@@ -16,8 +16,18 @@ func (p Permissions) Add(permissions ...Permission) {
 
 // Has returns whether permission exists in the map.
 func (p Permissions) Has(permission Permission) bool {
-	_, present := p[permission]
-	return present
+	_, isPresent := p[permission]
+	return isPresent
+}
+
+// HasOne returns whether one of the provided permissions exists in the map.
+func (p Permissions) HasOne(permissions ...Permission) bool {
+	for _, permission := range permissions {
+		if _, isPresent := p[permission]; isPresent {
+			return true
+		}
+	}
+	return false
 }
 
 // MarshalJSON JSON encodes the map.
