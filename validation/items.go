@@ -4,11 +4,6 @@ package validation
 // Items manages Item objects.
 type Items map[string]*Item
 
-// Messages is a map whose keys are item names and whose values are validation
-// error messages. The map only contains the names of items that failed
-// validation.
-type Messages map[string]string
-
 // New returns a new instance of Items.
 func New() Items {
 	return make(Items)
