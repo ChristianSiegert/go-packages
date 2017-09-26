@@ -28,7 +28,7 @@ func New(host, port string) *WebApp {
 	}
 }
 
-// AddRoute adds a route to w.
+// AddRoute adds a route.
 func (w *WebApp) AddRoute(path string, handle httprouter.Handle, methods ...string) {
 	for _, method := range methods {
 		for _, hook := range w.hooks {
@@ -48,6 +48,11 @@ func (w *WebApp) AddFileDir(urlPath, dirPath string) {
 // AddRoute executes. Hooks added after calling AddRoute are ignored.
 func (w *WebApp) AddHook(hook Hook) {
 	w.hooks = append(w.hooks, hook)
+}
+
+// SetNotFound sets a NotFound handler the router uses when no route matches.
+func (w *WebApp) SetNotFound(handler http.Handler) {
+	w.router.NotFound = handler
 }
 
 // Start starts the HTTP server.
