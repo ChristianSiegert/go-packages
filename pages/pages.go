@@ -142,27 +142,25 @@ func (p *Page) Redirect(url string, code int) {
 }
 
 // RequireSignIn redirects users to the sign-in page specified by SignInURL.
-// If SignInURL.RawQuery is empty, the query parameters “r” (referrer) and “t”
-// (title of the referrer page) are appended. This allows the sign-in page to
-// display a message that page <title> is access restricted, and after
-// successful authentication, users can be redirected to <referrer>, the page
-// they came from.
-func (p *Page) RequireSignIn(pageTitle string) {
+// Query parameters “referrer” and “title” are automatically added to SignInURL.
+// This allows the sign-in page to display a message that page <title> is access
+// restricted. After successful authentication, users can be redirected to
+// <referrer>, the page they came from.
+func (p *Page) RequireSignIn() {
 	u := &url.URL{
 		Scheme:   SignInURL.Scheme,
 		Opaque:   SignInURL.Opaque,
 		User:     SignInURL.User,
 		Host:     SignInURL.Host,
 		Path:     fmt.Sprintf(SignInURL.Path, p.Language.Code()),
+		RawQuery: SignInURL.RawQuery,
 		Fragment: SignInURL.Fragment,
 	}
 
-	if SignInURL.RawQuery == "" {
-		query := &url.Values{}
-		query.Add("r", p.request.URL.Path)
-		query.Add("t", base64.URLEncoding.EncodeToString([]byte(pageTitle))) // TODO: Sign or encrypt parameter to prevent tempering by users
-		u.RawQuery = query.Encode()
-	}
+	query := u.Query()
+	query.Set("referrer", p.request.URL.Path)
+	query.Set("title", base64.URLEncoding.EncodeToString([]byte(p.Title))) // TODO: Sign or encrypt parameter to prevent tempering by users
+	u.RawQuery = query.Encode()
 
 	p.Redirect(u.String(), http.StatusSeeOther)
 }
