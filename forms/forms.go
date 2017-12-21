@@ -225,7 +225,7 @@ func (f *Form) Option(value, label string) *elements.Element {
 }
 
 // Textarea returns a <textarea> element.
-func (f *Form) Textarea(fieldName, placeholder string) *elements.Element {
+func (f *Form) Textarea(fieldName, placeholder string, attributes ...string) *elements.Element {
 	element := &elements.Element{
 		Attributes: map[string]string{
 			"id":   fieldName,
@@ -245,6 +245,14 @@ func (f *Form) Textarea(fieldName, placeholder string) *elements.Element {
 
 	if value := f.request.FormValue(fieldName); value != "" {
 		element.Text = strings.TrimSpace(value)
+	}
+
+	for i, length := 0, len(attributes); i < length; i += 2 {
+		if i+1 < length {
+			element.AddAttributeValue(attributes[i], attributes[i+1])
+		} else {
+			element.AddAttributeValue(attributes[i], "")
+		}
 	}
 
 	if f.ValidationFields == nil {
