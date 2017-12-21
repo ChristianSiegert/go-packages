@@ -3,6 +3,7 @@ package validation
 import (
 	"fmt"
 	"regexp"
+	"strconv"
 	"time"
 	"unicode/utf8"
 )
@@ -73,6 +74,26 @@ func (i *Item) Func(fn func(value interface{}) (bool, error), message string) *I
 	return i
 }
 
+// Max checks if the item’s value is equal or less than max.
+func (i *Item) Max(max float64, message string) *Item {
+	i.Rules = append(i.Rules, &Rule{
+		Func: func(value interface{}) (bool, error) {
+			switch v := value.(type) {
+			case string:
+				number, err := strconv.ParseFloat(v, 64)
+				if err != nil {
+					return false, err
+				}
+				return number <= max, nil
+			}
+			return false, fmt.Errorf("validation.Item.Max: unsupported value type %T", value)
+		},
+		Args:    []interface{}{max},
+		Message: message,
+	})
+	return i
+}
+
 // MaxLength checks if the item’s value has a maximum length of maxLength.
 func (i *Item) MaxLength(maxLength int, message string) *Item {
 	i.Rules = append(i.Rules, &Rule{
@@ -89,6 +110,26 @@ func (i *Item) MaxLength(maxLength int, message string) *Item {
 		Args:    []interface{}{maxLength},
 		Message: message,
 		Type:    RuleTypeMaxLength,
+	})
+	return i
+}
+
+// Min checks if the item’s value is equal or greater than min.
+func (i *Item) Min(min float64, message string) *Item {
+	i.Rules = append(i.Rules, &Rule{
+		Func: func(value interface{}) (bool, error) {
+			switch v := value.(type) {
+			case string:
+				number, err := strconv.ParseFloat(v, 64)
+				if err != nil {
+					return false, err
+				}
+				return number >= min, nil
+			}
+			return false, fmt.Errorf("validation.Item.Min: unsupported value type %T", value)
+		},
+		Args:    []interface{}{min},
+		Message: message,
 	})
 	return i
 }
@@ -113,17 +154,50 @@ func (i *Item) MinLength(minLength int, message string) *Item {
 	return i
 }
 
+// Number checks if the item’s value is a number.
+func (i *Item) Number(message string) *Item {
+	i.Rules = append(i.Rules, &Rule{
+		Func: func(value interface{}) (bool, error) {
+			switch v := value.(type) {
+			case string:
+				_, err := strconv.ParseFloat(v, 64)
+				return err == nil, nil
+			}
+			return false, fmt.Errorf("validation.Item.Max: unsupported value type %T", value)
+		},
+		Message: message,
+	})
+	return i
+}
+
+// Pattern checks if the item’s value matches the regular expression.
+func (i *Item) Pattern(pattern *regexp.Regexp, message string) *Item {
+	i.Rules = append(i.Rules, &Rule{
+		Func: func(value interface{}) (bool, error) {
+			switch value := value.(type) {
+			case string:
+				return pattern.MatchString(value), nil
+			}
+			return false, fmt.Errorf("validation.Item.Pattern: unsupported value type %T", value)
+		},
+		Message: message,
+	})
+	return i
+}
+
 // Required checks if the item’s value is non-zero.
 func (i *Item) Required(message string) *Item {
 	i.Rules = append(i.Rules, &Rule{
 		Func: func(value interface{}) (bool, error) {
 			switch value := value.(type) {
-			case int8:
+			case int, int8, int16, int32, int64, uint, uint8, uint16, uint32, uint64:
 				return value != 0, nil
 			case string:
 				return len(value) > 0, nil
 			case time.Time:
 				return !value.IsZero(), nil
+			case []string:
+				return len(value) > 0, nil
 			}
 			return false, fmt.Errorf("validation.Item.Required: unsupported value type %T", value)
 		},
