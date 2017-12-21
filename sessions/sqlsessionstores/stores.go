@@ -2,14 +2,14 @@
 // database. Supported dialects are PostgreSQL and SQLite.
 //
 // You have to import the appropriate SQL driver yourself, e.g.:
-//     _ "github.com/lib/pq"           // for PostgreSQL, or:
-//     _ "github.com/mattn/go-sqlite3" // for SQLite
+//     import _ "github.com/lib/pq"           // for PostgreSQL, or:
+//     import _ "github.com/mattn/go-sqlite3" // for SQLite
 package sqlsessionstores
 
 import (
 	"crypto/rand"
 	"database/sql"
-	"encoding/base64"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -22,7 +22,7 @@ import (
 )
 
 // Pattern is the pattern used to match a session ID.
-var pattern = regexp.MustCompile("^[0-9a-zA-Z=/+]+$")
+var pattern = regexp.MustCompile("^[0-9a-f]+$")
 
 // KeyUserID is the key used to retrieve the user ID from session.Values and
 // store it in an indexed table column. This makes it possible to delete all
@@ -354,7 +354,7 @@ func generateID(strength int) (string, error) {
 	if _, err := io.ReadFull(rand.Reader, id); err != nil {
 		return "", err
 	}
-	return base64.StdEncoding.EncodeToString(id), nil
+	return hex.EncodeToString(id), nil
 }
 
 // isID checks whether id is a valid session ID.
