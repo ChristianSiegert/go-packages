@@ -5,8 +5,7 @@ import (
 	"html/template"
 )
 
-// Template is a wrapper around template.Template. It stores information that
-// allows it to reload template files.
+// Template is a collection of (nested) template files.
 type Template struct {
 	funcMap  template.FuncMap
 	paths    []string
@@ -20,9 +19,9 @@ func (t *Template) Reload() error {
 	return err
 }
 
-// NewTemplate loads a template consisting of template files specified by paths.
-// If the template uses functions other than the built-in Go functions, they
-// must be provided by funcMap.
+// NewTemplate creates a template from template files specified by paths. If the
+// template files are supposed to use functions other than the built-in Go
+// functions, these functions must be provided through funcMap.
 func NewTemplate(funcMap template.FuncMap, paths ...string) (*Template, error) {
 	if len(paths) == 0 {
 		return nil, errors.New("pages.NewTemplate: no template path provided")
@@ -40,18 +39,13 @@ func NewTemplate(funcMap template.FuncMap, paths ...string) (*Template, error) {
 	}, nil
 }
 
-// MustNewTemplate calls NewTemplate. If NewTemplate returns an error, the
-// function panics.
+// MustNewTemplate calls NewTemplate. It panics on error.
 func MustNewTemplate(funcMap template.FuncMap, paths ...string) *Template {
-	return Must(NewTemplate(funcMap, paths...))
-}
-
-// Must panics if err is not nil.
-func Must(t *Template, err error) *Template {
+	template, err := NewTemplate(funcMap, paths...)
 	if err != nil {
 		panic(err)
 	}
-	return t
+	return template
 }
 
 // load parses all files specified by paths.
