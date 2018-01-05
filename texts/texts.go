@@ -1,4 +1,4 @@
-// Package texts provides a function to truncate strings.
+// Package texts provides string truncation.
 package texts
 
 import (
