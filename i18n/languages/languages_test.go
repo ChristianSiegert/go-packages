@@ -1,88 +1,212 @@
-package languages
+package languages_test
 
 import (
 	"fmt"
+	"reflect"
+	"strconv"
 	"testing"
+	"text/template"
+
+	"github.com/ChristianSiegert/go-packages/i18n/languages"
 )
 
-func TestLanguage_AddMulti(t *testing.T) {
-	language := NewLanguage("de", "German")
-	language.AddMulti(
-		"greeting", "Hallo",
-		"farewell", "Tschüss",
-	)
+func MustTemplate(t *testing.T, name, text string) *template.Template {
+	tpl, err := template.New(name).Parse(text)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return tpl
+}
 
-	t.Logf("%s", language.translations)
-	t.Logf("%d", len(language.translations))
-
-	var tests = []struct {
+func TestLanguage_Set(t *testing.T) {
+	type args struct {
 		translationID string
-		expected      string
+		translation   interface{}
+	}
+
+	tests := []struct {
+		args     args
+		language *languages.Language
+		name     string
+		want     *languages.Translation
+		wantErr  bool
 	}{
-		{"greeting", "Hallo"},
-		{"farewell", "Tschüss"},
+		{
+			args:     args{"comments", "{{.Count}} Comments"},
+			language: languages.NewLanguage("en", "English"),
+			name:     "translation is of type string (1)",
+			want:     &languages.Translation{Other: MustTemplate(t, "comments", "{{.Count}} Comments")},
+			wantErr:  false,
+		},
+		{
+			args:     args{"comments", "{{if }}bad syntax}}"},
+			language: languages.NewLanguage("en", "English"),
+			name:     "translation is of type string (2)",
+			wantErr:  true,
+		},
+		{
+			args:     args{"comments", &languages.Translation{One: MustTemplate(t, "comments", "{{.Count}} Comments")}},
+			language: languages.NewLanguage("en", "English"),
+			name:     "translation is of type *Translation",
+			want:     &languages.Translation{One: MustTemplate(t, "comments", "{{.Count}} Comments")},
+			wantErr:  false,
+		},
+		{
+			args:     args{"comments", 123},
+			language: languages.NewLanguage("en", "English"),
+			name:     "translation is of type int",
+			wantErr:  true,
+		},
 	}
 
 	for _, test := range tests {
-		if actual := language.T(test.translationID); actual != test.expected {
-			t.Errorf("T(%q): Expected %q, got %q.", test.translationID, test.expected, actual)
-		}
+		t.Run(test.name, func(t *testing.T) {
+			got, err := test.language.Set(test.args.translationID, test.args.translation)
+
+			if (err != nil) != test.wantErr {
+				t.Errorf("Language.Set() error = %#v, wantErr %#v", err, test.wantErr)
+				return
+			}
+
+			if !reflect.DeepEqual(got, test.want) {
+				t.Errorf("Language.Set() = %#v, want %#v", got, test.want)
+			}
+		})
+	}
+}
+
+func TestLanguage_SetMulti(t *testing.T) {
+	type args struct {
+		translations map[string]interface{}
+	}
+
+	tests := []struct {
+		args     args
+		language *languages.Language
+		name     string
+		wantErr  bool
+	}{
+		{
+			args:     args{translations: map[string]interface{}{"greeting": "Hallo {{.Name}}"}},
+			language: languages.NewLanguage("de-de", "German (Germany)"),
+			name:     "translation is of type string",
+			wantErr:  false,
+		},
+		{
+			args:     args{translations: map[string]interface{}{"greeting": &languages.Translation{Other: MustTemplate(t, "greeting", "Hallo {{.Name}}")}}},
+			language: languages.NewLanguage("de-de", "German (Germany)"),
+			name:     "translation is of type *Translation",
+			wantErr:  false,
+		},
+		{
+			args:     args{translations: map[string]interface{}{"text": 123}},
+			language: languages.NewLanguage("de-de", "German (Germany)"),
+			name:     "translation is of int",
+			wantErr:  true,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			if err := test.language.SetMulti(test.args.translations); (err != nil) != test.wantErr {
+				t.Errorf("Language.SetMulti() error = %v, wantErr %v", err, test.wantErr)
+			}
+		})
+	}
+}
+
+func TestLanguage_Remove(t *testing.T) {
+	type args struct {
+		translationIDs []string
+	}
+
+	tests := []struct {
+		args         args
+		language     *languages.Language
+		name         string
+		translations map[string]interface{}
+		want         map[string]*languages.Translation
+	}{
+		{
+			args:     args{translationIDs: []string{"key1", "key3"}},
+			language: languages.NewLanguage("en", "English"),
+			name:     "Remove key1 and key3",
+			translations: map[string]interface{}{
+				"key1": "value 1",
+				"key2": "value 2",
+				"key3": "value 3",
+			},
+			want: map[string]*languages.Translation{
+				"key2": &languages.Translation{Other: MustTemplate(t, "key2", "value 2")},
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			if err := test.language.SetMulti(test.translations); err != nil {
+				t.Error(err)
+			}
+			test.language.Remove(test.args.translationIDs...)
+
+			if !reflect.DeepEqual(test.language.Translations, test.want) {
+				t.Errorf("got %#v, want %#v", test.language.Translations, test.want)
+			}
+		})
 	}
 }
 
 func TestLanguage_T(t *testing.T) {
-	german := NewLanguage("de", "German")
-	german.Add("greeting", "Hallo {{.Name}}")
+	german := languages.NewLanguage("de", "German")
+	german.Set("greeting", "Hallo {{.Name}}")
 
-	english := NewLanguage("en", "English")
-	english.Add("greeting", "Hello {{.Name}}")
+	english := languages.NewLanguage("en", "English")
+	english.Set("greeting", "Hello {{.Name}}")
 
-	spanish := NewLanguage("es", "Spanish")
-	spanish.Add("greeting", "Hola {{.Name}}")
-	spanish.Add("farewell", "Adiós {{.Name}}")
-
-	args := []map[string]interface{}{
-		map[string]interface{}{"Name": "Christian"},
-	}
+	spanish := languages.NewLanguage("es", "Spanish")
+	spanish.Set("greeting", "Hola {{.Name}}")
+	spanish.Set("farewell", "Adiós {{.Name}}")
 
 	var tests = []struct {
-		language      *Language
-		fallbacks     []*Language
+		language      *languages.Language
+		fallbacks     []*languages.Language
 		translationID string
-		args          []map[string]interface{}
-		expected      string
+		data          map[string]interface{}
+		want          string
 	}{
-		// Test: key exists in language
-		{german, nil, "greeting", args, "Hallo Christian"},
-		{english, nil, "greeting", args, "Hello Christian"},
-		{spanish, nil, "greeting", args, "Hola Christian"},
+		// Test: translation ID exists in language
+		{german, nil, "greeting", map[string]interface{}{"Name": "Christian"}, "Hallo Christian"},
+		{english, nil, "greeting", map[string]interface{}{"Name": "Christian"}, "Hello Christian"},
+		{spanish, nil, "greeting", map[string]interface{}{"Name": "Christian"}, "Hola Christian"},
 
-		// Test: key is missing in language
+		// Test: translation ID is missing in language
 		{german, nil, "farewell", nil, "farewell"},
 
-		// Test: key is missing in primary language, exists in fallback language
-		{german, []*Language{english, spanish}, "farewell", args, "Adiós Christian"},
+		// Test: translation ID is missing in primary language, exists in fallback language
+		{german, []*languages.Language{english, spanish}, "farewell", map[string]interface{}{"Name": "Christian"}, "Adiós Christian"},
 	}
 
-	for _, test := range tests {
-		test.language.Fallbacks = test.fallbacks
+	for i, test := range tests {
+		t.Run("Test "+strconv.Itoa(i), func(t *testing.T) {
+			test.language.Fallbacks = test.fallbacks
 
-		if actual := test.language.T(test.translationID, test.args...); actual != test.expected {
-			t.Errorf(
-				"Language %q: T(%q, %s): Expected %q, got %q.",
-				test.language.Name(),
-				test.translationID,
-				test.args,
-				test.expected,
-				actual,
-			)
-		}
+			if got := test.language.T(test.translationID, test.data); got != test.want {
+				t.Errorf(
+					"Language %q: T(%q, %s): Expected %q, got %q.",
+					test.language.Name,
+					test.translationID,
+					test.data,
+					test.want,
+					got,
+				)
+			}
+		})
 	}
 }
 
 func Example() {
-	language := NewLanguage("de", "German")
-	language.Add("greeting", "Hallo")
+	language := languages.NewLanguage("de", "German")
+	language.Set("greeting", "Hallo")
 
 	text := language.T("greeting")
 	fmt.Println(text)
@@ -90,8 +214,8 @@ func Example() {
 }
 
 func Example_withData() {
-	language := NewLanguage("de", "German")
-	language.Add("greeting", "Hallo {{.Name}}")
+	language := languages.NewLanguage("de", "German")
+	language.Set("greeting", "Hallo {{.Name}}")
 
 	text := language.T("greeting", map[string]interface{}{"Name": "Christian"})
 	fmt.Println(text)
@@ -99,23 +223,24 @@ func Example_withData() {
 }
 
 func Example_withFallbackLanguages() {
-	german := NewLanguage("de", "German")
-	german.Add("greeting", "Hallo {{.Name}}")
+	german := languages.NewLanguage("de", "German")
+	german.Set("greeting", "Hallo {{.Name}}")
 
-	english := NewLanguage("en", "English")
-	english.Add("greeting", "Hello {{.Name}}")
+	english := languages.NewLanguage("en", "English")
+	english.Set("greeting", "Hello {{.Name}}")
 
-	spanish := NewLanguage("es", "Spanish")
-	spanish.Add("greeting", "Hola {{.Name}}")
-	spanish.Add("farewell", "Adiós {{.Name}}")
+	spanish := languages.NewLanguage("es", "Spanish")
+	spanish.Set("greeting", "Hola {{.Name}}")
+	spanish.Set("farewell", "Adiós {{.Name}}")
 
-	german.Fallbacks = []*Language{english, spanish}
+	german.Fallbacks = []*languages.Language{english, spanish}
 
 	text := german.T("greeting", map[string]interface{}{"Name": "Christian"})
 	fmt.Println(text)
 
 	text = german.T("farewell", map[string]interface{}{"Name": "Christian"})
 	fmt.Println(text)
+
 	// Output:
 	// Hallo Christian
 	// Adiós Christian

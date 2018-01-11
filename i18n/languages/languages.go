@@ -7,7 +7,6 @@ package languages
 
 import (
 	"bytes"
-	"errors"
 	"fmt"
 	"log"
 	"text/template"
@@ -16,76 +15,76 @@ import (
 // Language is a set of translation IDs and their translation text.
 type Language struct {
 	// Language code, e.g. “de”, “en” or “en-US”.
-	code string
+	Code string
 
 	// Fallback languages to check when a translation is missing for this
 	// language.
 	Fallbacks []*Language
 
 	// Language name, e.g. “German”.
-	name string
+	Name string
 
-	// Translation keys and associated translation text.
-	translations map[string]*Translation
+	// Translation IDs and associated translation.
+	Translations map[string]*Translation
 }
 
 // NewLanguage returns a new instance of Language. Code is the language code,
 // e.g. “de”, “en” or “en-US”. Name is the language name, e.g. “German”.
 func NewLanguage(code, name string) *Language {
 	return &Language{
-		code:         code,
-		name:         name,
-		translations: make(map[string]*Translation),
+		Code:         code,
+		Name:         name,
+		Translations: make(map[string]*Translation),
 	}
 }
 
-// Add adds a translation to the language. If translationID already exists, the
-// existing translation is replaced with the provided one. If the template
-// cannot be parsed, the method panics.
-func (l *Language) Add(translationID, translation string) *Translation {
-	tmpl, err := template.New(translationID).Parse(translation)
-	if err != nil {
-		panic(fmt.Errorf("languages.Add: Parsing translation template failed: %s", err))
+// Set adds a translation identified by translationID to the language. If a
+// translation with the provided translationID already exists, it is replaced.
+// translation can be of type string or *Translation.
+func (l *Language) Set(translationID string, translation interface{}) (*Translation, error) {
+	var t *Translation
+
+	switch translation := translation.(type) {
+	case string:
+		tpl, err := template.New(translationID).Parse(translation)
+		if err != nil {
+			return nil, fmt.Errorf("languages: parsing translation failed: %s", err)
+		}
+		t = &Translation{Other: tpl}
+	case *Translation:
+		t = translation
+	default:
+		return nil, fmt.Errorf("languages: unsupported type %T", translation)
 	}
 
-	t := &Translation{Other: tmpl}
-	l.translations[translationID] = t
-	return t
+	l.Translations[translationID] = t
+	return t, nil
 }
 
-// AddMulti adds translations to the language. Args with an even index are used
-// as translation IDs and items with an odd index are used as translations.
-func (l *Language) AddMulti(args ...string) error {
-	if len(args)%2 != 0 {
-		return errors.New("languages.AddMulti: Number of translation IDs and translations does not match")
+// SetMulti adds translations to the language. translations is a map of
+// translation ID as key and translation as value. If a translation with the
+// provided translation ID already exists, it is replaced. translation can be of
+// type string or *Translation.
+func (l *Language) SetMulti(translations map[string]interface{}) error {
+	for translationID, translation := range translations {
+		if _, err := l.Set(translationID, translation); err != nil {
+			return err
+		}
 	}
-
-	for i, count := 0, len(args); i < count; i += 2 {
-		l.Add(args[i], args[i+1])
-	}
-
 	return nil
-}
-
-// Code returns the language code, e.g. “de”, “en” or “en-US”.
-func (l *Language) Code() string {
-	return l.code
 }
 
 // Get retrieves a translation. If translationID cannot be found, nil is
 // returned.
 func (l *Language) Get(translationID string) *Translation {
-	return l.translations[translationID]
+	return l.Translations[translationID]
 }
 
-// Name returns the language name, e.g. “German”.
-func (l *Language) Name() string {
-	return l.name
-}
-
-// Remove removes a translation from the language.
-func (l *Language) Remove(translationID string) {
-	delete(l.translations, translationID)
+// Remove removes translations from the language.
+func (l *Language) Remove(translationIDs ...string) {
+	for _, translationID := range translationIDs {
+		delete(l.Translations, translationID)
+	}
 }
 
 // T returns the translation associated with translationID. If the translation
@@ -112,8 +111,10 @@ func (l *Language) T(translationID string, args ...map[string]interface{}) strin
 
 		var buf bytes.Buffer
 
+		// TODO: Pick plural group based on quantity.
 		if err := translation.Other.Execute(&buf, templateData); err != nil {
-			log.Fatalf("languages: Executing template failed: %s\n", err)
+			log.Printf("languages: executing template %q with data %#v for language %s %s failed: %s\n", translationID, templateData, l.Code, l.Name, err)
+			return translationID
 		}
 		return buf.String()
 	}
