@@ -14,10 +14,10 @@ import (
 type Form struct {
 	request *http.Request
 
-	// ValidationFields is a map of field names and their corresponding
+	// ValidationItems is a map of field names and their corresponding
 	// validation.Item. Used to get information about the items’ validation
 	// rules.
-	ValidationFields validation.Items
+	ValidationItems validation.Items
 
 	// ValidationMessages contains a validation error message for each form
 	// field that has an invalid value.
@@ -25,11 +25,11 @@ type Form struct {
 }
 
 // New returns a new instance of Form.
-func New(request *http.Request) (*Form, error) {
+func New(request *http.Request) *Form {
 	return &Form{
 		request:            request,
 		ValidationMessages: validation.Messages{},
-	}, nil
+	}
 }
 
 // Error returns a <div class="validation-error"> element that contains the
@@ -87,11 +87,11 @@ func (f *Form) Input(fieldName, placeholder string, attributes ...string) *eleme
 		}
 	}
 
-	if f.ValidationFields == nil {
+	if f.ValidationItems == nil {
 		return element
 	}
 
-	if field, ok := f.ValidationFields[fieldName]; ok {
+	if field, ok := f.ValidationItems[fieldName]; ok {
 		for _, rule := range field.Rules {
 			if rule.Type == validation.RuleTypeRequired {
 				element.Attributes["required"] = ""
@@ -255,11 +255,11 @@ func (f *Form) Textarea(fieldName, placeholder string, attributes ...string) *el
 		}
 	}
 
-	if f.ValidationFields == nil {
+	if f.ValidationItems == nil {
 		return element
 	}
 
-	if field, ok := f.ValidationFields[fieldName]; ok {
+	if field, ok := f.ValidationItems[fieldName]; ok {
 		for _, rule := range field.Rules {
 			if rule.Type == validation.RuleTypeRequired {
 				element.Attributes["required"] = ""

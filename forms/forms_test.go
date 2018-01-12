@@ -3,11 +3,12 @@ package forms
 import (
 	"bytes"
 	"errors"
-	"github.com/ChristianSiegert/go-packages/html/elements"
 	"net/http"
 	"reflect"
 	"strings"
 	"testing"
+
+	"github.com/ChristianSiegert/go-packages/html/elements"
 )
 
 func TestForm_Email(t *testing.T) {
