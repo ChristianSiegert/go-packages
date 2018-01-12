@@ -14,13 +14,16 @@ import (
 
 // Parser parses httprouter, POST, PUT, GET, etc., parameters.
 type Parser struct {
+	// AfterParse is called after Parse executed successfully. It is useful for
+	// operations that should occur after parsing, like validation.
+	AfterParse func(dest interface{}) error
+
 	request      *http.Request
 	routerParams httprouter.Params
 }
 
 // NewParser returns a new Parser.
 func NewParser(request *http.Request, params httprouter.Params) (*Parser, error) {
-
 	if request.Form == nil {
 		if err := request.ParseForm(); err != nil {
 			return nil, err
@@ -295,6 +298,9 @@ func (p *Parser) Parse(dest interface{}) error {
 		}
 	}
 
+	if p.AfterParse != nil {
+		return p.AfterParse(dest)
+	}
 	return nil
 }
 
