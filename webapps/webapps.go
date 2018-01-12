@@ -1,105 +1,104 @@
+// Package webapps handles the creation of routes.
 package webapps
 
 import (
+	"log"
 	"net/http"
+	"os"
+	"path"
+	"runtime"
 
-	"github.com/ChristianSiegert/go-packages/i18n/languages"
-	"github.com/ChristianSiegert/go-packages/sessions"
 	"github.com/julienschmidt/httprouter"
 )
 
-// Hook is a function that is called before a route’s handle function.
-type Hook func(httprouter.Handle) httprouter.Handle
+var logger = log.New(os.Stderr, "", log.Ldate|log.Ltime)
 
-// WebApp represents a web application or web site.
+// Handle responds to an HTTP request.
+type Handle func(http.ResponseWriter, *http.Request, httprouter.Params) error
+
+// Middleware envelops Handle to intercept HTTP requests and modify responses.
+type Middleware func(Handle) Handle
+
+// WebApp represents a web application or web site. Router gives access to the
+// underlying router and its settings. OnError and OnPanic can be overwritten
+// by custom functions to handle errors and panics.
 type WebApp struct {
-	hooks      []Hook
-	router     *httprouter.Router
+	middlewares []Middleware
+
+	// OnError is called after a Handle returned an error.
+	OnError func(writer http.ResponseWriter, request *http.Request, params httprouter.Params, err error)
+
+	// OnPanic is called after a Handle panicked.
+	OnPanic func(writer http.ResponseWriter, request *http.Request, params httprouter.Params, recoveryInfo interface{})
+
+	// Router is the underlying router.
+	Router *httprouter.Router
+
 	serverHost string
 	serverPort string
 }
 
-// New returns a new WebApp.
+// New returns a new WebApp. OnError and OnPanic are initalized with a default
+// function for handling errors and panics, and can be overwritten by a custom
+// function.
 func New(host, port string) *WebApp {
 	return &WebApp{
-		router:     httprouter.New(),
+		OnError:    onError,
+		OnPanic:    onPanic,
+		Router:     httprouter.New(),
 		serverHost: host,
 		serverPort: port,
 	}
 }
 
-// AddRoute adds a route.
-func (w *WebApp) AddRoute(path string, handle httprouter.Handle, methods ...string) {
+// Middleware adds a function that is executed before any Handle is executed.
+// Middlewares added after calling Route are ignored.
+func (w *WebApp) Middleware(middleware Middleware) {
+	w.middlewares = append(w.middlewares, middleware)
+}
+
+// Route associates a URL path with a Handle.
+func (w *WebApp) Route(path string, handle Handle, methods ...string) {
 	for _, method := range methods {
-		for _, hook := range w.hooks {
-			handle = hook(handle)
+		for _, middleware := range w.middlewares {
+			handle = middleware(handle)
 		}
-		w.router.Handle(method, path, handle)
+
+		h := func(writer http.ResponseWriter, request *http.Request, params httprouter.Params) {
+			defer func() {
+				if r := recover(); r != nil {
+					w.OnPanic(writer, request, params, r)
+				}
+			}()
+
+			if err := handle(writer, request, params); err != nil {
+				w.OnError(writer, request, params, err)
+			}
+		}
+
+		w.Router.Handle(method, path, h)
 	}
-}
-
-// AddFileDir makes files stored in dirPath accessible at urlPath. urlPath must
-// end with “/*filepath”.
-func (w *WebApp) AddFileDir(urlPath, dirPath string) {
-	w.router.ServeFiles(urlPath, http.Dir(dirPath))
-}
-
-// AddHook adds a function that is executed before httprouter.Handle from
-// AddRoute executes. Hooks added after calling AddRoute are ignored.
-func (w *WebApp) AddHook(hook Hook) {
-	w.hooks = append(w.hooks, hook)
-}
-
-// SetNotFound sets a NotFound handler the router uses when no route matches.
-func (w *WebApp) SetNotFound(handler http.Handler) {
-	w.router.NotFound = handler
 }
 
 // Start starts the HTTP server.
 func (w *WebApp) Start() error {
 	serverAddress := w.serverHost + ":" + w.serverPort
-	return http.ListenAndServe(serverAddress, w.router)
+	return http.ListenAndServe(serverAddress, w.Router)
 }
 
 // StartWithTLS starts the HTTP server with TLS (Transport Layer Security).
 func (w *WebApp) StartWithTLS(certificatePath, keyPath string) error {
 	serverAddress := w.serverHost + ":" + w.serverPort
-	return http.ListenAndServeTLS(serverAddress, certificatePath, keyPath, w.router)
+	return http.ListenAndServeTLS(serverAddress, certificatePath, keyPath, w.Router)
 }
 
-// LanguageHook returns a hook that adds the user-selected language to the
-// request context. param is the name of the route parameter that contains the
-// language code. defaultURL is the URL to redirect to when the requested
-// language is not supported.
-func LanguageHook(param string, langs map[string]*languages.Language, defaultURL string) Hook {
-	return func(handle httprouter.Handle) httprouter.Handle {
-		return func(writer http.ResponseWriter, request *http.Request, params httprouter.Params) {
-			languageCode := params.ByName(param)
-
-			language, ok := langs[languageCode]
-			if !ok {
-				http.Redirect(writer, request, defaultURL, http.StatusSeeOther)
-				return
-			}
-
-			context := languages.NewContext(request.Context(), language)
-			request = request.WithContext(context)
-
-			handle(writer, request, params)
-		}
-	}
+func onError(writer http.ResponseWriter, request *http.Request, params httprouter.Params, err error) {
+	logger.Printf("error %s %s: %s", request.Method, request.URL, err)
+	http.Error(writer, "internal server error", http.StatusInternalServerError)
 }
 
-// SessionHook returns a hook that adds the session to the request context.
-func SessionHook(sessionStore sessions.Store) Hook {
-	return func(handle httprouter.Handle) httprouter.Handle {
-		return func(writer http.ResponseWriter, request *http.Request, params httprouter.Params) {
-			if session, err := sessionStore.Get(writer, request); err == nil {
-				context := sessions.NewContext(request.Context(), session)
-				request = request.WithContext(context)
-			}
-
-			handle(writer, request, params)
-		}
-	}
+func onPanic(writer http.ResponseWriter, request *http.Request, params httprouter.Params, recoveryInfo interface{}) {
+	_, file, line, _ := runtime.Caller(4)
+	logger.Printf("panic %s %s: %s:%d %+v", request.Method, request.URL, path.Base(file), line, recoveryInfo)
+	http.Error(writer, "internal server error", http.StatusInternalServerError)
 }
