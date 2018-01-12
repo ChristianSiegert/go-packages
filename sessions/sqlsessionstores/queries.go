@@ -7,7 +7,7 @@ const (
 	querySave   = "save"
 )
 
-var queries = map[dialect]map[string]string{
+var queries = map[string]map[string]string{
 	DialectPostgreSQL: map[string]string{
 		queryCreate: `
 			CREATE TABLE IF NOT EXISTS %s (

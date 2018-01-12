@@ -40,13 +40,10 @@ const (
 	AuthMethodHeader = authMethod("header")
 )
 
-// Dialect is the SQL dialect the store uses.
-type dialect string
-
 // Supported SQL dialects.
 const (
-	DialectPostgreSQL = dialect("postgres")
-	DialectSQLite     = dialect("sqlite")
+	DialectPostgreSQL = "postgresql"
+	DialectSQLite     = "sqlite"
 )
 
 // Store contains information about the session store.
@@ -58,7 +55,7 @@ type Store struct {
 	DB *sql.DB
 
 	// SQL dialect to use.
-	Dialect dialect
+	Dialect string
 
 	// Expiration is the duration after which sessions expire.
 	Expiration time.Duration
@@ -89,16 +86,26 @@ type AuthOptions struct {
 
 // New returns a new Store. If a table with the specified name does not exist,
 // it is created.
-func New(db *sql.DB, tableName string, dialect dialect, authOptions AuthOptions) (*Store, error) {
+func New(dialect string, db *sql.DB, tableName string) (*Store, error) {
+	if dialect != DialectPostgreSQL && dialect != DialectSQLite {
+		return nil, fmt.Errorf("unsupported dialect %q", dialect)
+	}
+
 	if err := createSchema(db, tableName, dialect); err != nil {
 		return nil, err
+	}
+
+	authOptions := AuthOptions{
+		AuthMethod: AuthMethodCookie,
+		CookieName: "session",
+		CookiePath: "/",
 	}
 
 	store := &Store{
 		AuthOptions: authOptions,
 		DB:          db,
 		Dialect:     dialect,
-		Expiration:  14 * 24 * time.Hour,
+		Expiration:  30 * 24 * time.Hour,
 		Strength:    40,
 		TableName:   tableName,
 	}
@@ -106,7 +113,7 @@ func New(db *sql.DB, tableName string, dialect dialect, authOptions AuthOptions)
 	return store, nil
 }
 
-func createSchema(db *sql.DB, tableName string, dialect dialect) error {
+func createSchema(db *sql.DB, tableName string, dialect string) error {
 	query := fmt.Sprintf(
 		queries[dialect][queryCreate],
 		tableName,
