@@ -12,19 +12,12 @@ type Template struct {
 	template *template.Template
 }
 
-// Reload parses the template files again.
-func (t *Template) Reload() error {
-	tpl, err := load(t.funcMap, t.paths...)
-	t.template = tpl
-	return err
-}
-
 // NewTemplate creates a template from template files specified by paths. If the
 // template files are supposed to use functions other than the built-in Go
 // functions, these functions must be provided through funcMap.
 func NewTemplate(funcMap template.FuncMap, paths ...string) (*Template, error) {
 	if len(paths) == 0 {
-		return nil, errors.New("pages.NewTemplate: no template path provided")
+		return nil, errors.New("pages: no template path provided")
 	}
 
 	tpl, err := load(funcMap, paths...)
@@ -46,6 +39,13 @@ func MustNewTemplate(funcMap template.FuncMap, paths ...string) *Template {
 		panic(err)
 	}
 	return template
+}
+
+// Reload parses the template files again.
+func (t *Template) Reload() error {
+	var err error
+	t.template, err = load(t.funcMap, t.paths...)
+	return err
 }
 
 // load parses all files specified by paths.
