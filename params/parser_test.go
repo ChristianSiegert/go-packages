@@ -5,57 +5,60 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"reflect"
-	"strconv"
 	"testing"
 
 	"github.com/ChristianSiegert/go-packages/params"
 )
 
-type TestStruct1 struct {
-	Field1  string
-	Field2  float32
-	Field3  float64
-	Field4  int
-	Field5  int8
-	Field6  int16
-	Field7  int32
-	Field8  int64
-	Field9  uint
-	Field10 uint8
-	Field11 uint16
-	Field12 uint32
-	Field13 uint64
-
-	Field14 []string
-	Field15 []float32
-	Field16 []float64
-	Field17 []int
-	Field18 []int8
-	Field19 []int16
-	Field20 []int32
-	Field21 []int64
-	Field22 []uint
-	Field23 []uint8
-	Field24 []uint16
-	Field25 []uint32
-	Field26 []uint64
-
-	Field27 bool
-	Field28 bool
-	Field29 bool
-	Field30 []bool
-	Field31 []bool
-	Field32 []bool
+// Dest1 is a destination for writing parsed URL values into.
+type Dest1 struct {
+	Bool1    bool
+	Bool2    bool
+	Bool3    bool
+	Bool4    bool
+	Bool5    bool
+	Bool6    bool
+	Float32  float32
+	Float64  float64
+	Int      int
+	Int8     int8
+	Int16    int16
+	Int32    int32
+	Int64    int64
+	String1  string
+	String2  string `param:"custom_name_string2"`
+	Uint     uint
+	Uint8    uint8
+	Uint16   uint16
+	Uint32   uint32
+	Uint64   uint64
+	Sbool1   []bool
+	Sbool2   []bool
+	Sbool3   []bool
+	Sbool4   []bool
+	Sbool5   []bool
+	Sbool6   []bool
+	Sfloat32 []float32
+	Sfloat64 []float64
+	Sint     []int
+	Sint8    []int8
+	Sint16   []int16
+	Sint32   []int32
+	Sint64   []int64
+	Sstring1 []string
+	Sstring2 []string `param:"custom_name_sstring2"`
+	Suint    []uint
+	Suint8   []uint8
+	Suint16  []uint16
+	Suint32  []uint32
+	Suint64  []uint64
 }
 
-type TestStruct2 struct {
-	SomeFieldName string `param:"real_field_name"`
+type Dest3 struct {
+	Map map[string]string
 }
 
-type TestStruct3 struct {
-	Field map[string]string
-}
-
+// methods are HTTP methods the parser must support when parsing URL values.
 var methods = []string{
 	http.MethodConnect,
 	http.MethodDelete,
@@ -70,45 +73,201 @@ var methods = []string{
 
 func TestParser_Parse(t *testing.T) {
 	tests := []struct {
-		arg          interface{}
-		parameters   url.Values
-		expectedDest interface{}
-		expectedErr  bool
+		inputDest   interface{}
+		inputParams url.Values
+		expected    interface{}
+		expectErr   bool
 	}{
 		{
-			arg:          &TestStruct1{},
-			parameters:   test1URLValues(),
-			expectedDest: test1Expected(),
+			inputDest: &Dest1{},
+			inputParams: url.Values{
+				"bool1":                []string{"1", "0"},
+				"bool2":                []string{"true", "false"},
+				"bool3":                []string{"yes", "no"},
+				"bool4":                []string{"0", "1"},
+				"bool5":                []string{"false", "true"},
+				"bool6":                []string{"no", "yes"},
+				"float32":              []string{"2", "3"},
+				"float64":              []string{"4", "5"},
+				"int":                  []string{"6", "7"},
+				"int8":                 []string{"8", "9"},
+				"int16":                []string{"10", "11"},
+				"int32":                []string{"12", "13"},
+				"int64":                []string{"14", "15"},
+				"string1":              []string{"16", "17"},
+				"uint":                 []string{"18", "19"},
+				"uint8":                []string{"20", "21"},
+				"uint16":               []string{"22", "23"},
+				"uint32":               []string{"24", "25"},
+				"uint64":               []string{"26", "27"},
+				"sbool1":               []string{"1", "0"},
+				"sbool2":               []string{"true", "false"},
+				"sbool3":               []string{"yes", "no"},
+				"sbool4":               []string{"0", "1"},
+				"sbool5":               []string{"false", "true"},
+				"sbool6":               []string{"no", "yes"},
+				"sfloat32":             []string{"28", "29"},
+				"sfloat64":             []string{"30", "31"},
+				"sint":                 []string{"32", "33"},
+				"sint8":                []string{"34", "35"},
+				"sint16":               []string{"36", "37"},
+				"sint32":               []string{"38", "39"},
+				"sint64":               []string{"40", "41"},
+				"sstring1":             []string{"42", "43"},
+				"suint":                []string{"44", "45"},
+				"suint8":               []string{"46", "47"},
+				"suint16":              []string{"48", "49"},
+				"suint32":              []string{"50", "51"},
+				"suint64":              []string{"52", "53"},
+				"custom_name_string2":  []string{"lorem"},
+				"custom_name_sstring2": []string{"lorem", "ipsum"},
+			},
+			expected: &Dest1{
+				Bool1:    true,
+				Bool2:    true,
+				Bool3:    true,
+				Bool4:    false,
+				Bool5:    false,
+				Bool6:    false,
+				Float32:  2,
+				Float64:  4,
+				Int:      6,
+				Int8:     8,
+				Int16:    10,
+				Int32:    12,
+				Int64:    14,
+				String1:  "16",
+				String2:  "lorem",
+				Uint:     18,
+				Uint8:    20,
+				Uint16:   22,
+				Uint32:   24,
+				Uint64:   26,
+				Sbool1:   []bool{true, false},
+				Sbool2:   []bool{true, false},
+				Sbool3:   []bool{true, false},
+				Sbool4:   []bool{false, true},
+				Sbool5:   []bool{false, true},
+				Sbool6:   []bool{false, true},
+				Sfloat32: []float32{28, 29},
+				Sfloat64: []float64{30, 31},
+				Sint:     []int{32, 33},
+				Sint8:    []int8{34, 35},
+				Sint16:   []int16{36, 37},
+				Sint32:   []int32{38, 39},
+				Sint64:   []int64{40, 41},
+				Sstring1: []string{"42", "43"},
+				Sstring2: []string{"lorem", "ipsum"},
+				Suint:    []uint{44, 45},
+				Suint8:   []uint8{46, 47},
+				Suint16:  []uint16{48, 49},
+				Suint32:  []uint32{50, 51},
+				Suint64:  []uint64{52, 53},
+			},
 		},
 		{
-			arg:          &TestStruct1{},
-			parameters:   url.Values{"field27": []string{"no", "yes"}},
-			expectedDest: &TestStruct1{Field27: false},
+			inputDest: &Dest1{},
+			inputParams: url.Values{
+				"bool1":                []string{"", "1", "0"},
+				"bool2":                []string{"", "true", "false"},
+				"bool3":                []string{"", "yes", "no"},
+				"bool4":                []string{"", "0", "1"},
+				"bool5":                []string{"", "false", "true"},
+				"bool6":                []string{"", "no", "yes"},
+				"float32":              []string{"", "2", "3"},
+				"float64":              []string{"", "4", "5"},
+				"int":                  []string{"", "6", "7"},
+				"int8":                 []string{"", "8", "9"},
+				"int16":                []string{"", "10", "11"},
+				"int32":                []string{"", "12", "13"},
+				"int64":                []string{"", "14", "15"},
+				"string1":              []string{"", "16", "17"},
+				"uint":                 []string{"", "18", "19"},
+				"uint8":                []string{"", "20", "21"},
+				"uint16":               []string{"", "22", "23"},
+				"uint32":               []string{"", "24", "25"},
+				"uint64":               []string{"", "26", "27"},
+				"sbool1":               []string{"", "1", "0"},
+				"sbool2":               []string{"", "true", "false"},
+				"sbool3":               []string{"", "yes", "no"},
+				"sbool4":               []string{"", "0", "1"},
+				"sbool5":               []string{"", "false", "true"},
+				"sbool6":               []string{"", "no", "yes"},
+				"sfloat32":             []string{"", "28", "29"},
+				"sfloat64":             []string{"", "30", "31"},
+				"sint":                 []string{"", "32", "33"},
+				"sint8":                []string{"", "34", "35"},
+				"sint16":               []string{"", "36", "37"},
+				"sint32":               []string{"", "38", "39"},
+				"sint64":               []string{"", "40", "41"},
+				"sstring1":             []string{"", "42", "43"},
+				"suint":                []string{"", "44", "45"},
+				"suint8":               []string{"", "46", "47"},
+				"suint16":              []string{"", "48", "49"},
+				"suint32":              []string{"", "50", "51"},
+				"suint64":              []string{"", "52", "53"},
+				"custom_name_string2":  []string{"", "lorem"},
+				"custom_name_sstring2": []string{"", "lorem", "ipsum"},
+			},
+			expected: &Dest1{
+				Bool1:    false,
+				Bool2:    false,
+				Bool3:    false,
+				Bool4:    false,
+				Bool5:    false,
+				Bool6:    false,
+				Float32:  0,
+				Float64:  0,
+				Int:      0,
+				Int8:     0,
+				Int16:    0,
+				Int32:    0,
+				Int64:    0,
+				String1:  "",
+				String2:  "",
+				Uint:     0,
+				Uint8:    0,
+				Uint16:   0,
+				Uint32:   0,
+				Uint64:   0,
+				Sbool1:   []bool{false, true, false},
+				Sbool2:   []bool{false, true, false},
+				Sbool3:   []bool{false, true, false},
+				Sbool4:   []bool{false, false, true},
+				Sbool5:   []bool{false, false, true},
+				Sbool6:   []bool{false, false, true},
+				Sfloat32: []float32{0, 28, 29},
+				Sfloat64: []float64{0, 30, 31},
+				Sint:     []int{0, 32, 33},
+				Sint8:    []int8{0, 34, 35},
+				Sint16:   []int16{0, 36, 37},
+				Sint32:   []int32{0, 38, 39},
+				Sint64:   []int64{0, 40, 41},
+				Sstring1: []string{"", "42", "43"},
+				Sstring2: []string{"", "lorem", "ipsum"},
+				Suint:    []uint{0, 44, 45},
+				Suint8:   []uint8{0, 46, 47},
+				Suint16:  []uint16{0, 48, 49},
+				Suint32:  []uint32{0, 50, 51},
+				Suint64:  []uint64{0, 52, 53},
+			},
 		},
 		{
-			arg:          &TestStruct1{},
-			parameters:   url.Values{"field27": []string{"notbool"}},
-			expectedDest: &TestStruct1{},
-			expectedErr:  true,
+			inputDest:   &Dest3{},
+			inputParams: url.Values{"map": []string{"foo"}},
+			expected:    &Dest3{},
+			expectErr:   true,
 		},
+		// Test not passing pointer to struct
 		{
-			arg:          &TestStruct2{},
-			parameters:   url.Values{"real_field_name": []string{"lorem"}},
-			expectedDest: &TestStruct2{"lorem"},
+			inputDest: Dest1{},
+			expectErr: true,
 		},
+		// Test empty request parameters
 		{
-			arg:         &TestStruct3{},
-			parameters:  url.Values{"field": []string{"foo"}},
-			expectedErr: true,
-		},
-		{
-			arg:         TestStruct1{},
-			expectedErr: true,
-		},
-		{
-			arg:          &TestStruct1{},
-			parameters:   nil,
-			expectedDest: &TestStruct1{},
+			inputDest:   &Dest1{},
+			inputParams: nil,
+			expected:    &Dest1{},
 		},
 	}
 
@@ -118,9 +277,9 @@ func TestParser_Parse(t *testing.T) {
 				// Create request that contains the parameters
 				request := httptest.NewRequest(method, "/", nil)
 				if usePostForm {
-					request.PostForm = test.parameters
+					request.PostForm = test.inputParams
 				} else {
-					request.Form = test.parameters
+					request.Form = test.inputParams
 				}
 
 				// Create parser
@@ -130,77 +289,19 @@ func TestParser_Parse(t *testing.T) {
 				}
 
 				// Test
-				dest := test.arg
+				dest := test.inputDest
 
 				if err := parser.Parse(dest); err != nil {
-					if !test.expectedErr {
-						t.Fatalf("Parse failed: unexpected error %q", err)
+					if !test.expectErr {
+						t.Fatalf("Parse failed: unexpected error: %s", err)
 					}
 					continue
-				} else if test.expectedErr {
+				} else if test.expectErr {
 					t.Fatalf("Parse failed: no error occured, expected error")
-				}
-
-				if !reflect.DeepEqual(dest, test.expectedDest) {
-					t.Fatalf("Parse failed:\n%#v\n%#v", test.expectedDest, dest)
+				} else if !reflect.DeepEqual(dest, test.expected) {
+					t.Fatalf("Parse failed:\nexpected %#v\n\ngot %#v", test.expected, dest)
 				}
 			}
 		}
-	}
-}
-
-func test1URLValues() url.Values {
-	urlValues := url.Values{}
-	for i := 0; i < 27; i++ {
-		name := "field" + strconv.Itoa(i+1)
-		value1 := strconv.Itoa(2*i + 1)
-		value2 := strconv.Itoa(2*i + 2)
-		urlValues[name] = []string{value1, value2}
-	}
-	urlValues["field27"] = []string{"1", "0"}
-	urlValues["field28"] = []string{"true", "false"}
-	urlValues["field29"] = []string{"yes", "no"}
-	urlValues["field30"] = urlValues["field27"]
-	urlValues["field31"] = urlValues["field28"]
-	urlValues["field32"] = urlValues["field29"]
-	return urlValues
-}
-
-func test1Expected() interface{} {
-	return &TestStruct1{
-		Field1:  "1",
-		Field2:  3.0,
-		Field3:  5.0,
-		Field4:  7,
-		Field5:  9,
-		Field6:  11,
-		Field7:  13,
-		Field8:  15,
-		Field9:  17,
-		Field10: 19,
-		Field11: 21,
-		Field12: 23,
-		Field13: 25,
-
-		Field14: []string{"27", "28"},
-		Field15: []float32{29, 30},
-		Field16: []float64{31, 32},
-		Field17: []int{33, 34},
-		Field18: []int8{35, 36},
-		Field19: []int16{37, 38},
-		Field20: []int32{39, 40},
-		Field21: []int64{41, 42},
-		Field22: []uint{43, 44},
-		Field23: []uint8{45, 46},
-		Field24: []uint16{47, 48},
-		Field25: []uint32{49, 50},
-		Field26: []uint64{51, 52},
-
-		Field27: true,
-		Field28: true,
-		Field29: true,
-		Field30: []bool{true, false},
-		Field31: []bool{true, false},
-		Field32: []bool{true, false},
 	}
 }

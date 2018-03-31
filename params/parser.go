@@ -65,118 +65,96 @@ func (p *Parser) Parse(dest interface{}) error {
 		field := v.Field(i)
 
 		switch field.Type().String() {
-		case "string":
-			field.SetString(paramValues[0])
 		case "bool":
-			if s := strings.ToLower(paramValues[0]); s == "yes" {
-				field.SetBool(true)
-				break
-			} else if s == "no" {
-				field.SetBool(false)
-				break
-			}
-
-			x, err := strconv.ParseBool(paramValues[0])
-			if err != nil {
-				return err
-			}
-			field.SetBool(x)
+			s := strings.ToLower(paramValues[0])
+			b := s == "1" || s == "true" || s == "yes"
+			field.SetBool(b)
 		case "float32":
-			x, err := strconv.ParseFloat(paramValues[0], 32)
+			x, err := strconv.ParseFloat(z(paramValues[0]), 32)
 			if err != nil {
 				return err
 			}
 			field.SetFloat(x)
 		case "float64":
-			x, err := strconv.ParseFloat(paramValues[0], 64)
+			x, err := strconv.ParseFloat(z(paramValues[0]), 64)
 			if err != nil {
 				return err
 			}
 			field.SetFloat(x)
 		case "int":
-			x, err := strconv.ParseInt(paramValues[0], 10, 0)
+			x, err := strconv.ParseInt(z(paramValues[0]), 10, 0)
 			if err != nil {
 				return err
 			}
 			field.SetInt(x)
 		case "int8":
-			x, err := strconv.ParseInt(paramValues[0], 10, 8)
+			x, err := strconv.ParseInt(z(paramValues[0]), 10, 8)
 			if err != nil {
 				return err
 			}
 			field.SetInt(x)
 		case "int16":
-			x, err := strconv.ParseInt(paramValues[0], 10, 16)
+			x, err := strconv.ParseInt(z(paramValues[0]), 10, 16)
 			if err != nil {
 				return err
 			}
 			field.SetInt(x)
 		case "int32":
-			x, err := strconv.ParseInt(paramValues[0], 10, 32)
+			x, err := strconv.ParseInt(z(paramValues[0]), 10, 32)
 			if err != nil {
 				return err
 			}
 			field.SetInt(x)
 		case "int64":
-			x, err := strconv.ParseInt(paramValues[0], 10, 64)
+			x, err := strconv.ParseInt(z(paramValues[0]), 10, 64)
 			if err != nil {
 				return err
 			}
 			field.SetInt(x)
+		case "string":
+			field.SetString(paramValues[0])
 		case "uint":
-			x, err := strconv.ParseUint(paramValues[0], 10, 0)
+			x, err := strconv.ParseUint(z(paramValues[0]), 10, 0)
 			if err != nil {
 				return err
 			}
 			field.SetUint(x)
 		case "uint8":
-			x, err := strconv.ParseUint(paramValues[0], 10, 8)
+			x, err := strconv.ParseUint(z(paramValues[0]), 10, 8)
 			if err != nil {
 				return err
 			}
 			field.SetUint(x)
 		case "uint16":
-			x, err := strconv.ParseUint(paramValues[0], 10, 16)
+			x, err := strconv.ParseUint(z(paramValues[0]), 10, 16)
 			if err != nil {
 				return err
 			}
 			field.SetUint(x)
 		case "uint32":
-			x, err := strconv.ParseUint(paramValues[0], 10, 32)
+			x, err := strconv.ParseUint(z(paramValues[0]), 10, 32)
 			if err != nil {
 				return err
 			}
 			field.SetUint(x)
 		case "uint64":
-			x, err := strconv.ParseUint(paramValues[0], 10, 64)
+			x, err := strconv.ParseUint(z(paramValues[0]), 10, 64)
 			if err != nil {
 				return err
 			}
 			field.SetUint(x)
-		case "[]string":
-			field.Set(reflect.ValueOf(paramValues))
 		case "[]bool":
 			s := make([]bool, 0, len(paramValues))
 			for _, value := range paramValues {
-				if str := strings.ToLower(value); str == "yes" {
-					s = append(s, true)
-					continue
-				} else if str == "no" {
-					s = append(s, false)
-					continue
-				}
-
-				x, err := strconv.ParseBool(value)
-				if err != nil {
-					return err
-				}
-				s = append(s, x)
+				str := strings.ToLower(value)
+				b := str == "1" || str == "true" || str == "yes"
+				s = append(s, b)
 			}
 			field.Set(reflect.ValueOf(s))
 		case "[]float32":
 			s := make([]float32, 0, len(paramValues))
 			for _, value := range paramValues {
-				x, err := strconv.ParseFloat(value, 32)
+				x, err := strconv.ParseFloat(z(value), 32)
 				if err != nil {
 					return err
 				}
@@ -186,7 +164,7 @@ func (p *Parser) Parse(dest interface{}) error {
 		case "[]float64":
 			s := make([]float64, 0, len(paramValues))
 			for _, value := range paramValues {
-				x, err := strconv.ParseFloat(value, 64)
+				x, err := strconv.ParseFloat(z(value), 64)
 				if err != nil {
 					return err
 				}
@@ -196,7 +174,7 @@ func (p *Parser) Parse(dest interface{}) error {
 		case "[]int":
 			s := make([]int, 0, len(paramValues))
 			for _, value := range paramValues {
-				x, err := strconv.ParseFloat(value, 0)
+				x, err := strconv.ParseFloat(z(value), 0)
 				if err != nil {
 					return err
 				}
@@ -206,7 +184,7 @@ func (p *Parser) Parse(dest interface{}) error {
 		case "[]int8":
 			s := make([]int8, 0, len(paramValues))
 			for _, value := range paramValues {
-				x, err := strconv.ParseFloat(value, 8)
+				x, err := strconv.ParseFloat(z(value), 8)
 				if err != nil {
 					return err
 				}
@@ -216,7 +194,7 @@ func (p *Parser) Parse(dest interface{}) error {
 		case "[]int16":
 			s := make([]int16, 0, len(paramValues))
 			for _, value := range paramValues {
-				x, err := strconv.ParseFloat(value, 16)
+				x, err := strconv.ParseFloat(z(value), 16)
 				if err != nil {
 					return err
 				}
@@ -226,7 +204,7 @@ func (p *Parser) Parse(dest interface{}) error {
 		case "[]int32":
 			s := make([]int32, 0, len(paramValues))
 			for _, value := range paramValues {
-				x, err := strconv.ParseFloat(value, 32)
+				x, err := strconv.ParseFloat(z(value), 32)
 				if err != nil {
 					return err
 				}
@@ -236,17 +214,19 @@ func (p *Parser) Parse(dest interface{}) error {
 		case "[]int64":
 			s := make([]int64, 0, len(paramValues))
 			for _, value := range paramValues {
-				x, err := strconv.ParseFloat(value, 64)
+				x, err := strconv.ParseFloat(z(value), 64)
 				if err != nil {
 					return err
 				}
 				s = append(s, int64(x))
 			}
 			field.Set(reflect.ValueOf(s))
+		case "[]string":
+			field.Set(reflect.ValueOf(paramValues))
 		case "[]uint":
 			s := make([]uint, 0, len(paramValues))
 			for _, value := range paramValues {
-				x, err := strconv.ParseFloat(value, 0)
+				x, err := strconv.ParseFloat(z(value), 0)
 				if err != nil {
 					return err
 				}
@@ -256,7 +236,7 @@ func (p *Parser) Parse(dest interface{}) error {
 		case "[]uint8":
 			s := make([]uint8, 0, len(paramValues))
 			for _, value := range paramValues {
-				x, err := strconv.ParseFloat(value, 8)
+				x, err := strconv.ParseFloat(z(value), 8)
 				if err != nil {
 					return err
 				}
@@ -266,7 +246,7 @@ func (p *Parser) Parse(dest interface{}) error {
 		case "[]uint16":
 			s := make([]uint16, 0, len(paramValues))
 			for _, value := range paramValues {
-				x, err := strconv.ParseFloat(value, 16)
+				x, err := strconv.ParseFloat(z(value), 16)
 				if err != nil {
 					return err
 				}
@@ -276,7 +256,7 @@ func (p *Parser) Parse(dest interface{}) error {
 		case "[]uint32":
 			s := make([]uint32, 0, len(paramValues))
 			for _, value := range paramValues {
-				x, err := strconv.ParseFloat(value, 32)
+				x, err := strconv.ParseFloat(z(value), 32)
 				if err != nil {
 					return err
 				}
@@ -286,7 +266,7 @@ func (p *Parser) Parse(dest interface{}) error {
 		case "[]uint64":
 			s := make([]uint64, 0, len(paramValues))
 			for _, value := range paramValues {
-				x, err := strconv.ParseFloat(value, 64)
+				x, err := strconv.ParseFloat(z(value), 64)
 				if err != nil {
 					return err
 				}
@@ -322,4 +302,11 @@ func (p *Parser) param(name string) []string {
 	}
 
 	return nil
+}
+
+func z(value string) string {
+	if value == "" {
+		return "0"
+	}
+	return value
 }
