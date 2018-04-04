@@ -92,13 +92,14 @@ func (p *Page) FlashAll() ([]sessions.Flash, error) {
 	return flashes, nil
 }
 
-// Redirect redirects the client, using the provided HTTP status code, to the
-// the destination provided by path. path is automatically prefixed with
-// p.BaseURL and formatted with fmt.Sprintf, to which args is passed. error is
-// always nil.
-func (p *Page) Redirect(code int, path string, args ...interface{}) error {
-	url := p.BaseURL + fmt.Sprintf(path, args...)
-	http.Redirect(p.writer, p.request, url, code)
+// Redirect redirects the client to destination, using code as HTTP status code.
+// If args is provided, destination is formatted with fmt.Sprintf, to which args
+// is passed. destination is automatically prefixed with p.BaseURL.
+func (p *Page) Redirect(code int, destination string, args ...interface{}) error {
+	if len(args) > 0 {
+		destination = fmt.Sprintf(destination, args...)
+	}
+	http.Redirect(p.writer, p.request, p.BaseURL+destination, code)
 	return nil
 }
 
