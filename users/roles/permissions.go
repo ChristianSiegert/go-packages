@@ -14,16 +14,16 @@ func (p Permissions) Add(permissions ...Permission) {
 	}
 }
 
-// Has returns whether permission exists in the map.
+// Has returns whether permission has been granted.
 func (p Permissions) Has(permission Permission) bool {
-	_, isPresent := p[permission]
-	return isPresent
+	isTrue, isPresent := p[permission]
+	return isPresent && isTrue
 }
 
-// HasOne returns whether one of the provided permissions exists in the map.
+// HasOne returns whether one of the provided permissions has been granted.
 func (p Permissions) HasOne(permissions ...Permission) bool {
 	for _, permission := range permissions {
-		if _, isPresent := p[permission]; isPresent {
+		if p.Has(permission) {
 			return true
 		}
 	}

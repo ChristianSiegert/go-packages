@@ -6,20 +6,27 @@ import (
 
 var permissionA = Permission("A")
 var permissionB = Permission("B")
+var permissionC = Permission("C")
 
 func TestPermissions_Has(t *testing.T) {
 	permissions := make(Permissions)
 	permissions.Add(permissionA)
 	permissions.Add(permissionB)
+	permissions.Add(permissionC)
+	permissions[permissionC] = false
 
-	if len(permissions) != 2 || !permissions.Has(permissionA) || !permissions.Has(permissionB) {
+	if len(permissions) != 3 ||
+		!permissions.Has(permissionA) ||
+		!permissions.Has(permissionB) ||
+		permissions.Has(permissionC) {
 		t.Error("Has failed.")
 	}
 }
 
 func TestPermissions_HasOne(t *testing.T) {
 	permissions := make(Permissions)
-	permissions.Add(permissionA)
+	permissions[permissionA] = true
+	permissions[permissionC] = false
 
 	if result, expected := permissions.HasOne(permissionA, permissionB), true; result != expected {
 		t.Errorf("HasOne returned %t, expected %t", result, expected)
