@@ -51,7 +51,10 @@ func (p *Parser) Parse(dest interface{}) error {
 	t := reflect.TypeOf(v.Interface())
 
 	for i, j := 0, v.NumField(); i < j; i++ {
-		paramName := strings.ToLower(t.Field(i).Name)
+		// Use field name as parameter name
+		paramName := t.Field(i).Name
+
+		// If field has tag “param”, use tag’s value as parameter name
 		if name := t.Field(i).Tag.Get("param"); name != "" {
 			paramName = name
 		}
