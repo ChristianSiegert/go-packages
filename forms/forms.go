@@ -111,8 +111,8 @@ func (f *Form) Input(fieldName, placeholder string, attributes ...string) *eleme
 }
 
 // Checkbox returns an <input type="checkbox"> element.
-func (f *Form) Checkbox(fieldName, value string) *elements.Element {
-	element := f.Input(fieldName, "")
+func (f *Form) Checkbox(fieldName, value string, attributes ...string) *elements.Element {
+	element := f.Input(fieldName, "", attributes...)
 	element.Attributes["id"] = fieldName + "-" + value
 	element.Attributes["type"] = "checkbox"
 	element.Attributes["value"] = value
